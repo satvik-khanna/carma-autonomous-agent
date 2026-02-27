@@ -1,10 +1,10 @@
-import { searchCars, searchRentals } from '@/lib/tavily';
+import { searchCars } from '@/lib/tavily';
 import { NextResponse } from 'next/server';
 
 export async function POST(request) {
     try {
         const body = await request.json();
-        const { query, location, maxResults = 10, includeRentals = false } = body;
+        const { query, location, maxResults = 10 } = body;
 
         if (!query) {
             return NextResponse.json(
@@ -13,23 +13,13 @@ export async function POST(request) {
             );
         }
 
-        // Search for purchase listings
+        // Buy-only listing search
         const buyListings = await searchCars({ query, location, maxResults });
 
-        // Optionally search for rental listings
-        let rentalListings = [];
-        if (includeRentals) {
-            rentalListings = await searchRentals({
-                query,
-                location,
-                maxResults: Math.ceil(maxResults / 2),
-            });
-        }
-
-        const allListings = [
-            ...buyListings.map((l) => ({ ...l, listingType: l.listingType || 'buy' })),
-            ...rentalListings,
-        ];
+        const allListings = buyListings.map((listing) => ({
+            ...listing,
+            listingType: 'buy',
+        }));
 
         return NextResponse.json({
             success: true,

@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CarCard from '@/components/CarCard';
+import { sortCarsByScoreDesc } from '@/lib/scoringSort';
 
 export default function ResultsPage() {
     const router = useRouter();
     const [results, setResults] = useState(null);
-    const [sortBy, setSortBy] = useState('overallScore');
     const [filterRecommendation, setFilterRecommendation] = useState('all');
     const [selectedCar, setSelectedCar] = useState(null);
 
@@ -37,8 +37,8 @@ export default function ResultsPage() {
         cars = cars.filter((c) => c.recommendation === filterRecommendation);
     }
 
-    // Sort
-    cars.sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
+    // Always show highest score first.
+    cars = sortCarsByScoreDesc(cars);
 
     return (
         <div className="container">
@@ -47,7 +47,7 @@ export default function ResultsPage() {
                     Results for &quot;<span style={{ color: 'var(--color-accent-secondary)' }}>{results.query}</span>&quot;
                 </h2>
                 <p className="results-meta">
-                    {cars.length} cars found · Ranked by AI · Searched at{' '}
+                    {cars.length} cars found · Highest score first · Searched at{' '}
                     {new Date(results.timestamp).toLocaleTimeString()}
                 </p>
 
@@ -60,23 +60,6 @@ export default function ResultsPage() {
                     alignItems: 'center',
                 }}>
                     <div className="input-group" style={{ minWidth: '180px' }}>
-                        <label htmlFor="sortBy">Sort By</label>
-                        <select
-                            id="sortBy"
-                            className="input"
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                        >
-                            <option value="overallScore">Overall Score</option>
-                            <option value="valueScore">Value Score</option>
-                            <option value="buyScore">Buy Score</option>
-                            <option value="rentScore">Rent Score</option>
-                            <option value="matchScore">Match Score</option>
-                            <option value="priceNumeric">Price (High to Low)</option>
-                        </select>
-                    </div>
-
-                    <div className="input-group" style={{ minWidth: '180px' }}>
                         <label htmlFor="filter">Filter</label>
                         <select
                             id="filter"
@@ -86,7 +69,6 @@ export default function ResultsPage() {
                         >
                             <option value="all">All Recommendations</option>
                             <option value="buy">🟢 Buy</option>
-                            <option value="rent">🟡 Rent</option>
                             <option value="consider">🔵 Consider</option>
                         </select>
                     </div>
@@ -181,8 +163,8 @@ export default function ResultsPage() {
 
                         <div className="detail-recommendation" style={{ marginBottom: '1.5rem' }}>
                             <h4>
-                                {selectedCar.recommendation === 'buy' ? '🟢' : selectedCar.recommendation === 'rent' ? '🟡' : '🔵'}
-                                {' '}AI Recommendation: {selectedCar.recommendation?.toUpperCase() || 'CONSIDER'}
+                                {selectedCar.recommendation === 'buy' ? '🟢' : '🔵'}
+                                {' '}Recommendation: {selectedCar.recommendation?.toUpperCase() || 'CONSIDER'}
                             </h4>
                             <p>{selectedCar.aiExplanation}</p>
                         </div>
@@ -190,10 +172,27 @@ export default function ResultsPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
                             <ScoreBarInline label="Overall" score={selectedCar.overallScore} variant="purple" />
                             <ScoreBarInline label="Value" score={selectedCar.valueScore} variant="purple" />
+                            <ScoreBarInline label="Condition Score" score={selectedCar.conditionScore} variant="orange" />
                             <ScoreBarInline label="Buy Score" score={selectedCar.buyScore} variant="green" />
-                            <ScoreBarInline label="Rent Score" score={selectedCar.rentScore} variant="orange" />
                             <ScoreBarInline label="Match" score={selectedCar.matchScore} variant="purple" />
+                            <ScoreBarInline label="Data Confidence" score={selectedCar.confidenceScore} variant="purple" />
                         </div>
+
+                        {selectedCar.scoreBreakdown && (
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Scoring Signals</h4>
+                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: 1.6 }}>
+                                    Budget fit: <strong>{selectedCar.scoreBreakdown.budgetFit || 'unknown'}</strong> ·
+                                    {' '}Market position: <strong>{selectedCar.scoreBreakdown.marketPosition || 'unknown'}</strong> ·
+                                    {' '}Title: <strong>{selectedCar.scoreBreakdown.titleStatus || 'unknown'}</strong> ·
+                                    {' '}Accident: <strong>{selectedCar.scoreBreakdown.accidentSeverity || 'none'}</strong> ·
+                                    {' '}Owners: <strong>{selectedCar.scoreBreakdown.ownerCount ?? 'N/A'}</strong> ·
+                                    {' '}Service records: <strong>{selectedCar.scoreBreakdown.serviceRecordCount ?? 'N/A'}</strong> ·
+                                    {' '}Miles/year: <strong>{selectedCar.scoreBreakdown.mileagePerYear ?? 'N/A'}</strong> ·
+                                    {' '}Data completeness: <strong>{selectedCar.scoreBreakdown.listingCompleteness ?? 'N/A'}%</strong>
+                                </p>
+                            </div>
+                        )}
 
                         {selectedCar.description && (
                             <div style={{ marginBottom: '1.5rem' }}>

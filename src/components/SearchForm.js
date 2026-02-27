@@ -9,7 +9,6 @@ export default function SearchForm({ onSearch, loading }) {
         budget: '',
         useCase: 'daily commute',
         duration: '3+ years',
-        preference: 'open to both',
     });
 
     const handleChange = (e) => {
@@ -53,13 +52,13 @@ export default function SearchForm({ onSearch, loading }) {
                 </div>
 
                 <div className="input-group">
-                    <label htmlFor="budget">Monthly Budget ($)</label>
+                    <label htmlFor="budget">Budget ($)</label>
                     <input
                         id="budget"
                         name="budget"
                         type="number"
                         className="input"
-                        placeholder="e.g. 500"
+                        placeholder="e.g. 25000"
                         value={formData.budget}
                         onChange={handleChange}
                     />
@@ -86,7 +85,7 @@ export default function SearchForm({ onSearch, loading }) {
                 </div>
 
                 <div className="input-group">
-                    <label htmlFor="duration">How Long Do You Need It?</label>
+                    <label htmlFor="duration">Planned Ownership</label>
                     <select
                         id="duration"
                         name="duration"
@@ -98,21 +97,6 @@ export default function SearchForm({ onSearch, loading }) {
                         <option value="6 months to 1 year">6 months – 1 year</option>
                         <option value="1-3 years">1–3 years</option>
                         <option value="3+ years">3+ years</option>
-                    </select>
-                </div>
-
-                <div className="input-group">
-                    <label htmlFor="preference">Buy or Rent?</label>
-                    <select
-                        id="preference"
-                        name="preference"
-                        className="input"
-                        value={formData.preference}
-                        onChange={handleChange}
-                    >
-                        <option value="open to both">Open to Both</option>
-                        <option value="prefer buying">Prefer Buying</option>
-                        <option value="prefer renting">Prefer Renting</option>
                     </select>
                 </div>
             </div>

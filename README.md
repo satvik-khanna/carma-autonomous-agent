@@ -1,12 +1,12 @@
-# 🚗 Carma — Autonomous Car Buy & Rent Agent
+# 🚗 Carma — Autonomous Car Buying Agent
 
-Carma is an AI-powered decision engine that matches users with the ideal car for buying or renting. It reasons over lifestyle, commute patterns, budget, resale value, and real-time market data to deliver explainable, personalized recommendations.
+Carma is a decision engine that matches users with the ideal car to buy. It reasons over lifestyle, commute patterns, budget, resale value, and scraped listing data to deliver explainable recommendations.
 
 ## Tech Stack
 
 - **Frontend:** Next.js 15 (React) — `src/`
 - **Backend Scraper:** Python + Tavily — `backend/`
-- **AI Ranking:** OpenAI GPT-4o
+- **Scoring Engine:** Attribute-based ranking from scraped listing data
 - **Data Collection:** [Tavily](https://tavily.com) Search API
 - **Database:** AWS DynamoDB _(coming soon)_
 
@@ -45,7 +45,7 @@ Copy `.env.local.example` to `.env.local` and fill in:
 | Key | Where to get it | Required? |
 |---|---|---|
 | `TAVILY_API_KEY` | [tavily.com](https://tavily.com) | ✅ Yes |
-| `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com) | Optional (fallback scoring works without it) |
+| `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com) | Optional |
 
 ## Project Structure
 
@@ -53,7 +53,7 @@ Copy `.env.local.example` to `.env.local` and fill in:
 ├── src/                        # Next.js Frontend
 │   ├── app/                    # Pages & API routes
 │   ├── components/             # React components
-│   ├── lib/                    # Tavily & OpenAI clients
+│   ├── lib/                    # Tavily search + scoring engine
 │   └── styles/                 # CSS design system
 ├── backend/                    # Python Scraper
 │   ├── scraper/pipeline/       # Tavily-based scraping stages
@@ -65,10 +65,10 @@ Copy `.env.local.example` to `.env.local` and fill in:
 
 ## How It Works
 
-1. **Search** — Enter car type, budget, location, and preferences
+1. **Search** — Enter car type, budget, location, and intended use
 2. **Aggregate** — Tavily searches Cars.com, CarGurus, AutoTrader, Craigslist and more
-3. **AI Rank** — OpenAI scores each car on value, buy suitability, rent suitability, and user match (1–10)
-4. **Decide** — See ranked results with buy vs rent recommendations and AI explanations
+3. **Score Listings** — Carma scores each listing on value, condition, buy quality, and user match (1–10)
+4. **Decide** — See ranked buy recommendations with transparent score explanations
 
 ## Contributing
 

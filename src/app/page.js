@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SearchForm from '@/components/SearchForm';
+import { sortCarsByScoreDesc } from '@/lib/scoringSort';
 
 export default function HomePage() {
     const router = useRouter();
@@ -20,7 +21,6 @@ export default function HomePage() {
                     query: formData.query,
                     location: formData.location,
                     maxResults: 10,
-                    includeRentals: formData.preference !== 'prefer buying',
                 }),
             });
 
@@ -32,7 +32,7 @@ export default function HomePage() {
                 return;
             }
 
-            // Step 2: Rank the cars via OpenAI
+            // Step 2: Rank the cars using attribute-based scoring
             const rankRes = await fetch('/api/rank', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -43,18 +43,18 @@ export default function HomePage() {
                         useCase: formData.useCase,
                         duration: formData.duration,
                         location: formData.location,
-                        preference: formData.preference,
                     },
                 }),
             });
 
             const rankData = await rankRes.json();
+            const rankedListings = sortCarsByScoreDesc(rankData.rankings || searchData.listings);
 
             // Store results in sessionStorage for the results page
             sessionStorage.setItem(
                 'carma-results',
                 JSON.stringify({
-                    rankings: rankData.rankings || searchData.listings,
+                    rankings: rankedListings,
                     query: formData.query,
                     preferences: formData,
                     timestamp: new Date().toISOString(),
@@ -79,8 +79,8 @@ export default function HomePage() {
                         <span className="gradient-text">Smarter</span>
                     </h1>
                     <p className="hero-subtitle animate-fade-in-up animate-delay-1">
-                        Carma searches top car sites, ranks every listing with AI, and tells you
-                        whether to <strong>buy or rent</strong> — personalized to your budget and lifestyle.
+                        Carma searches top car sites, scores every listing from scraped data attributes, and tells you
+                        which cars are worth buying based on your budget and lifestyle.
                     </p>
 
                     <div className="animate-fade-in-up animate-delay-2">
@@ -113,13 +113,13 @@ export default function HomePage() {
                             },
                             {
                                 icon: '🤖',
-                                title: 'AI Ranking',
-                                desc: 'OpenAI analyzes each car and scores it on value, buy potential, and rent suitability.',
+                                title: 'Scoring',
+                                desc: 'Each listing is scored from scraped attributes like price, mileage, year, and condition signals.',
                             },
                             {
                                 icon: '✅',
                                 title: 'Decide',
-                                desc: 'See ranked results with buy vs rent recommendations tailored to you.',
+                                desc: 'Review ranked buy recommendations with explainable score breakdowns.',
                             },
                         ].map((step, i) => (
                             <div
