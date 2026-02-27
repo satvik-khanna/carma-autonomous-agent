@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SearchForm from '@/components/SearchForm';
+import { sortCarsByScoreDesc } from '@/lib/scoringSort';
 
 export default function HomePage() {
     const router = useRouter();
@@ -48,12 +49,12 @@ export default function HomePage() {
                         useCase: formData.useCase,
                         duration: formData.duration,
                         location: formData.location,
-                        preference: formData.preference,
                     },
                 }),
             });
 
             const rankData = await rankRes.json();
+            const rankedListings = sortCarsByScoreDesc(rankData.rankings || searchData.listings);
 
             // Use ranked results, or fall back to search results if ranking fails
             const finalListings = rankData.rankings && rankData.rankings.length > 0

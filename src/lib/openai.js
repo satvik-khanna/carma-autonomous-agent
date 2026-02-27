@@ -1,19 +1,15 @@
-import OpenAI from 'openai';
+import { sortCarsByScoreDesc } from './scoringSort';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+const DEFAULT_TOTAL_BUDGET = 30000;
+const MONTHLY_BUDGET_THRESHOLD = 4000;
+const MONTHLY_TO_TOTAL_MULTIPLIER = 55;
 
 /**
- * Rank car listings based on user preferences using GPT-4.
- * Returns scored and ranked listings with buy/rent recommendations.
- *
- * @param {Array} cars - Normalized car listings
- * @param {Object} preferences - User preferences
- * @returns {Promise<Array>} Ranked cars with scores and explanations
+ * Rank car listings using deterministic attribute-based scoring.
+ * Scores are generated from scraped listing attributes and user preferences.
  */
-export async function rankCars(cars, preferences) {
-    if (!cars || cars.length === 0) {
+export async function rankCars(cars, preferences = {}) {
+    if (!Array.isArray(cars) || cars.length === 0) {
         return [];
     }
 
@@ -28,61 +24,43 @@ export async function rankCars(cars, preferences) {
 
     const prompt = buildRankingPrompt(cars, preferences);
 
-    try {
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-                {
-                    role: 'system',
-                    content: `You are Carma, an expert automotive advisor. You analyze car listings and help users decide whether to buy or rent based on their preferences and financial situation. You always provide honest, data-driven recommendations.
+function scoreCar(car, preferences) {
+    const budget = normalizeBudgetContext(preferences.budget);
+    const year = normalizeNumber(car.year);
+    const age = year ? Math.max(0, new Date().getFullYear() - year) : null;
+    const mileage = normalizeNumber(car.mileage);
+    const priceNumeric = normalizeNumber(car.priceNumeric);
+    const attributes = mergeAttributes(car, age, mileage);
 
-You MUST respond with valid JSON only. No markdown, no code fences, just raw JSON.`,
-                },
-                {
-                    role: 'user',
-                    content: prompt,
-                },
-            ],
-            temperature: 0.3,
-            max_tokens: 4000,
-        });
+    const positives = [];
+    const concerns = [];
 
-        const content = response.choices[0]?.message?.content;
-        if (!content) {
-            return applyFallbackScoring(cars, preferences);
+    let valueScore = 5;
+    if (priceNumeric && budget.totalBudget) {
+        const budgetRatio = priceNumeric / budget.totalBudget;
+        if (budgetRatio <= 0.75) {
+            valueScore += 3;
+            addReason(positives, 'well under budget');
+        } else if (budgetRatio <= 0.9) {
+            valueScore += 2;
+            addReason(positives, 'comfortably within budget');
+        } else if (budgetRatio <= 1.0) {
+            valueScore += 1;
+            addReason(positives, 'within budget target');
+        } else if (budgetRatio <= 1.1) {
+            valueScore += 0;
+            addReason(concerns, 'near the top of budget');
+        } else if (budgetRatio <= 1.25) {
+            valueScore -= 2;
+            addReason(concerns, 'above budget target');
+        } else {
+            valueScore -= 3;
+            addReason(concerns, 'significantly above budget');
         }
-
-        // Parse the JSON response
-        const parsed = JSON.parse(content);
-        const rankings = parsed.rankings || parsed;
-
-        // Merge rankings back with original car data
-        return cars.map((car, index) => {
-            const ranking = Array.isArray(rankings)
-                ? rankings.find((r) => r.index === index) || rankings[index]
-                : null;
-
-            if (!ranking) {
-                return { ...car, ...getDefaultScores() };
-            }
-
-            return {
-                ...car,
-                valueScore: clampScore(ranking.valueScore || ranking.value_score),
-                buyScore: clampScore(ranking.buyScore || ranking.buy_score),
-                rentScore: clampScore(ranking.rentScore || ranking.rent_score),
-                matchScore: clampScore(ranking.matchScore || ranking.match_score),
-                overallScore: clampScore(ranking.overallScore || ranking.overall_score),
-                recommendation: ranking.recommendation || 'consider',
-                aiExplanation: ranking.explanation || ranking.aiExplanation || '',
-            };
-        }).sort((a, b) => (b.overallScore || 0) - (a.overallScore || 0));
-
-    } catch (error) {
-        console.error('OpenAI ranking failed:', error);
-        return applyFallbackScoring(cars, preferences);
+    } else {
+        valueScore -= 1;
+        addReason(concerns, 'asking price not clearly available');
     }
-}
 
 /**
  * Build the ranking prompt for GPT-4.
@@ -104,7 +82,15 @@ function buildRankingPrompt(cars, preferences) {
         return parts.join(' | ');
     }).join('\n');
 
-    return `Analyze these car listings for a user and rank them. Score each car from 1-10 on multiple dimensions.
+    if (attributes.estimatedMonthlyPayment && budget.monthlyBudget) {
+        const paymentRatio = attributes.estimatedMonthlyPayment / budget.monthlyBudget;
+        if (paymentRatio <= 0.7) valueScore += 1;
+        if (paymentRatio > 1.0) {
+            valueScore -= 1;
+            addReason(concerns, 'estimated monthly payment exceeds target');
+        }
+    }
+    valueScore = clampScore(valueScore);
 
 ## User Preferences
 - Monthly Budget: $${preferences.budget || 'flexible'}
@@ -113,8 +99,22 @@ function buildRankingPrompt(cars, preferences) {
 - Location: ${preferences.location || 'Bay Area, CA'}
 - Preference: ${preferences.preference || 'open to both buy and rent'}
 
-## Car Listings
-${carSummaries}
+    switch (attributes.titleStatus) {
+        case 'clean':
+            conditionScore += 1;
+            addReason(positives, 'clean title signal');
+            break;
+        case 'rebuilt':
+            conditionScore -= 2;
+            addReason(concerns, 'rebuilt title signal');
+            break;
+        case 'salvage':
+            conditionScore -= 3;
+            addReason(concerns, 'salvage title signal');
+            break;
+        default:
+            break;
+    }
 
 ## Required Output Format
 Return a JSON object with a "rankings" array. Each item must have:
@@ -135,26 +135,190 @@ Consider these factors carefully:
 5. **Fuel costs**: Gas vs hybrid vs electric significantly impacts total ownership cost.`;
 }
 
-/**
- * Clamp a score between 1 and 10.
- */
-function clampScore(score) {
-    if (!score || isNaN(score)) return 5;
-    return Math.max(1, Math.min(10, Math.round(score)));
-}
+    if (attributes.serviceRecordCount !== null) {
+        if (attributes.serviceRecordCount >= 5) {
+            conditionScore += 1;
+            addReason(positives, 'strong service record history');
+        } else if (attributes.serviceRecordCount >= 1) {
+            addReason(positives, 'service records available');
+        }
+    } else if (attributes.serviceRecords) {
+        conditionScore += 1;
+        addReason(positives, 'service history mention');
+    } else {
+        addReason(concerns, 'service history not clearly documented');
+    }
 
-/**
- * Get default scores for a car when ranking fails.
- */
-function getDefaultScores() {
+    if (attributes.mileagePerYear !== null) {
+        if (attributes.mileagePerYear <= 12000) {
+            conditionScore += 1;
+            addReason(positives, 'mileage trend is healthy per year');
+        } else if (attributes.mileagePerYear > 18000) {
+            conditionScore -= 1;
+            addReason(concerns, 'high mileage per year trend');
+        }
+    }
+    conditionScore = clampScore(conditionScore);
+
+    let buyScore = 5;
+    if (age !== null) {
+        if (age <= 3) {
+            buyScore += 3;
+            addReason(positives, 'newer model year for long-term ownership');
+        } else if (age <= 6) {
+            buyScore += 2;
+        } else if (age <= 10) {
+            buyScore += 0;
+        } else if (age <= 14) {
+            buyScore -= 1;
+            addReason(concerns, 'older model year');
+        } else {
+            buyScore -= 2;
+            addReason(concerns, 'high vehicle age');
+        }
+    } else {
+        addReason(concerns, 'model year is unclear');
+    }
+
+    if (mileage !== null) {
+        if (mileage <= 40000) {
+            buyScore += 2;
+            addReason(positives, 'low mileage');
+        } else if (mileage <= 80000) {
+            buyScore += 1;
+            addReason(positives, 'reasonable mileage');
+        } else if (mileage <= 120000) {
+            buyScore += 0;
+        } else if (mileage <= 160000) {
+            buyScore -= 1;
+            addReason(concerns, 'higher mileage');
+        } else {
+            buyScore -= 2;
+            addReason(concerns, 'very high mileage');
+        }
+    } else {
+        addReason(concerns, 'odometer detail missing');
+    }
+
+    if (attributes.priceToMarketRatio !== null) {
+        if (attributes.priceToMarketRatio <= 0.95) buyScore += 1;
+        if (attributes.priceToMarketRatio > 1.1) buyScore -= 1;
+    }
+
+    if (attributes.titleStatus === 'rebuilt') buyScore -= 1;
+    if (attributes.titleStatus === 'salvage') buyScore -= 2;
+    if (attributes.accidentSeverity === 'severe') buyScore -= 1;
+    buyScore = clampScore(buyScore);
+
+    let matchScore = 5;
+    const useCase = `${preferences.useCase || ''}`.toLowerCase();
+    const duration = `${preferences.duration || ''}`.toLowerCase();
+    const text = `${car.title || ''} ${car.description || ''}`.toLowerCase();
+
+    if (useCase.includes('commute')) {
+        if (['hybrid', 'electric'].includes(attributes.fuelType)) matchScore += 2;
+        if (['sedan', 'hatchback'].includes(attributes.bodyStyle)) matchScore += 1;
+        if (attributes.bodyStyle === 'truck') {
+            matchScore -= 1;
+            addReason(concerns, 'body style may be less efficient for commute use');
+        }
+    }
+
+    if (useCase.includes('family')) {
+        if (['suv', 'minivan', 'sedan'].includes(attributes.bodyStyle)) matchScore += 2;
+        if (attributes.bodyStyle === 'coupe') matchScore -= 1;
+    }
+
+    if (useCase.includes('road') || useCase.includes('weekend')) {
+        if (['suv', 'wagon', 'minivan'].includes(attributes.bodyStyle)) matchScore += 1;
+        if (['awd', 'four_wd'].includes(attributes.drivetrain)) matchScore += 1;
+    }
+
+    if (useCase.includes('business')) {
+        if (year && year >= 2019) matchScore += 1;
+        if (['excellent', 'good'].includes(attributes.condition)) matchScore += 1;
+    }
+
+    if (useCase.includes('fun') || useCase.includes('performance')) {
+        if (/\b(sport|turbo|gt|performance|type r|amg|ss)\b/.test(text)) matchScore += 2;
+        if (attributes.bodyStyle === 'coupe') matchScore += 1;
+    }
+
+    if (duration.includes('3+') || duration.includes('1-3')) {
+        if (age !== null && age > 10) matchScore -= 1;
+        if (mileage !== null && mileage > 130000) matchScore -= 1;
+        if (attributes.serviceRecordCount && attributes.serviceRecordCount >= 3) matchScore += 1;
+    }
+
+    if (priceNumeric && budget.totalBudget) {
+        const ratio = priceNumeric / budget.totalBudget;
+        if (ratio <= 1.0) matchScore += 1;
+        if (ratio > 1.2) matchScore -= 1;
+    }
+    matchScore = clampScore(matchScore);
+
+    let confidenceScore = 4;
+    if (attributes.listingCompleteness !== null) {
+        confidenceScore += (attributes.listingCompleteness - 50) / 20;
+    }
+    if (priceNumeric) confidenceScore += 1;
+    if (year) confidenceScore += 0.5;
+    if (mileage !== null) confidenceScore += 0.5;
+    if (attributes.ownerCount !== null) confidenceScore += 0.5;
+    if (attributes.serviceRecordCount !== null) confidenceScore += 0.5;
+    if (attributes.titleStatus !== 'unknown') confidenceScore += 0.5;
+    if (attributes.condition !== 'unknown') confidenceScore += 0.5;
+    confidenceScore = clampScore(confidenceScore);
+
+    if (confidenceScore >= 8) {
+        addReason(positives, 'listing has rich detail for scoring confidence');
+    } else if (confidenceScore <= 5) {
+        addReason(concerns, 'limited listing detail reduces score certainty');
+    }
+
+    const overallScore = clampScore(
+        Math.round(
+            (valueScore * 0.24) +
+            (conditionScore * 0.23) +
+            (buyScore * 0.25) +
+            (matchScore * 0.18) +
+            (confidenceScore * 0.10)
+        )
+    );
+
+    const recommendation = overallScore >= 7 && buyScore >= 7 && conditionScore >= 6
+        ? 'buy'
+        : 'consider';
+
     return {
-        valueScore: 5,
-        buyScore: 5,
-        rentScore: 5,
-        matchScore: 5,
-        overallScore: 5,
-        recommendation: 'consider',
-        aiExplanation: 'Unable to generate AI analysis. Please review this listing manually.',
+        ...car,
+        valueScore,
+        conditionScore,
+        buyScore,
+        matchScore,
+        confidenceScore,
+        overallScore,
+        recommendation,
+        scoreBreakdown: {
+            budgetFit: describeBudgetFit(priceNumeric, budget.totalBudget),
+            marketPosition: describeMarketPosition(attributes.priceToMarketRatio),
+            titleStatus: attributes.titleStatus,
+            accidentSeverity: attributes.accidentSeverity,
+            ownerCount: attributes.ownerCount,
+            serviceRecordCount: attributes.serviceRecordCount,
+            mileagePerYear: attributes.mileagePerYear,
+            listingCompleteness: attributes.listingCompleteness,
+        },
+        aiExplanation: buildScoreExplanation({
+            overallScore,
+            valueScore,
+            conditionScore,
+            buyScore,
+            matchScore,
+            confidenceScore,
+            positives,
+            concerns,
+        }),
     };
 }
 

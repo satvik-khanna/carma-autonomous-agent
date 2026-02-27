@@ -80,6 +80,7 @@ export default function CarCard({ car, rank, onClick }) {
 
                 <div className="car-card-scores">
                     <ScoreBar label="Value" score={car.valueScore || 5} variant="purple" />
+                    <ScoreBar label="Condition" score={car.conditionScore || 5} variant="orange" />
                     <ScoreBar label="Buy Score" score={car.buyScore || 5} variant="green" />
                     <ScoreBar label="Match" score={car.matchScore || 5} variant="orange" />
                 </div>

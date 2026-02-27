@@ -1,4 +1,4 @@
-import { searchCars, searchRentals } from '@/lib/tavily';
+import { searchCars } from '@/lib/tavily';
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
@@ -6,7 +6,7 @@ import path from 'path';
 export async function POST(request) {
     try {
         const body = await request.json();
-        const { query, location, maxResults = 10, includeRentals = false } = body;
+        const { query, location, maxResults = 10 } = body;
 
         if (!query) {
             return NextResponse.json(
