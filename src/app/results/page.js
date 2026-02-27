@@ -280,7 +280,7 @@ export default function ResultsPage() {
                                     {selectedCar.description.length > 500 ? '...' : ''}
                                 </p>
                             </div>
-                        ) : null}
+                        )}
 
                         <a
                             href={selectedCar.url}
