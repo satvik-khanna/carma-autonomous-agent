@@ -60,11 +60,7 @@ export default function CarCard({ car, rank, onClick }) {
         <div className="car-card-scores">
           <ScoreBar
             label="AI Match Score"
-            score={Math.max(
-              car.valueScore || 5,
-              car.buyScore || 5,
-              car.rentScore || 5,
-            )}
+            score={Math.max(car.valueScore || 5, car.buyScore || 5)}
           />
         </div>
 

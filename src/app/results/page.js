@@ -369,13 +369,11 @@ export default function ResultsPage() {
               style={{ marginBottom: "1.5rem" }}
             >
               <h4>
-                {selectedCar.recommendation === "buy"
-                  ? "🟢"
-                  : selectedCar.recommendation === "rent"
-                    ? "🟡"
-                    : "🔵"}{" "}
-                AI Recommendation:{" "}
-                {selectedCar.recommendation?.toUpperCase() || "CONSIDER"}
+                {selectedCar.recommendation === "buy" ? "🟢" : "🔵"} AI
+                Recommendation:{" "}
+                {selectedCar.recommendation?.toUpperCase() === "RENT"
+                  ? "CONSIDER"
+                  : selectedCar.recommendation?.toUpperCase() || "CONSIDER"}
               </h4>
               <p>{selectedCar.aiExplanation}</p>
             </div>
@@ -404,11 +402,6 @@ export default function ResultsPage() {
                 variant="green"
               />
               <ScoreBarInline
-                label="Rent Score"
-                score={selectedCar.rentScore}
-                variant="orange"
-              />
-              <ScoreBarInline
                 label="Match"
                 score={selectedCar.matchScore}
                 variant="purple"
@@ -425,10 +418,10 @@ export default function ResultsPage() {
                     color: "var(--color-text-secondary)",
                     fontSize: "0.875rem",
                     lineHeight: 1.6,
+                    whiteSpace: "pre-line",
                   }}
                 >
-                  {selectedCar.description.substring(0, 500)}
-                  {selectedCar.description.length > 500 ? "..." : ""}
+                  {selectedCar.description}
                 </p>
               </div>
             )}

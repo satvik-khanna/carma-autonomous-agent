@@ -19,6 +19,12 @@ const DURATIONS = [
 ];
 
 const BUDGET_MARKS = [200, 400, 600, 800, 1000, 1500, 2000, 3000];
+const MILEAGE_MARKS = [30000, 60000, 90000, 120000, 150000];
+
+function formatMileage(value) {
+  if (value >= 150000) return "150,000+ mi";
+  return `${Number(value).toLocaleString()} mi`;
+}
 
 function formatBudget(value) {
   if (value >= 3000) return "$3,000+";
@@ -30,6 +36,7 @@ export default function SearchForm({ onSearch, loading }) {
     query: "",
     location: "",
     budget: "800",
+    maxMileage: "100000",
     useCase: "daily commute",
     duration: "3+ years",
   });
@@ -119,6 +126,42 @@ export default function SearchForm({ onSearch, loading }) {
                 className={`sf-slider-mark ${Number(formData.budget) >= mark ? "active" : ""}`}
               >
                 {mark >= 1000 ? `$${mark / 1000}k` : `$${mark}`}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* --- Max Mileage Slider --- */}
+      <div className="sf-section">
+        <label className="sf-label">
+          <span className="sf-label-icon">🛣️</span>
+          Max Mileage
+          <span className="sf-budget-value">
+            {formatMileage(Number(formData.maxMileage))}
+          </span>
+        </label>
+        <div className="sf-slider-wrap">
+          <input
+            type="range"
+            name="maxMileage"
+            className="sf-slider"
+            min="10000"
+            max="150000"
+            step="5000"
+            value={formData.maxMileage}
+            onChange={handleChange}
+            style={{
+              "--pct": `${((Number(formData.maxMileage) - 10000) / (150000 - 10000)) * 100}%`,
+            }}
+          />
+          <div className="sf-slider-marks">
+            {MILEAGE_MARKS.map((mark) => (
+              <span
+                key={mark}
+                className={`sf-slider-mark ${Number(formData.maxMileage) >= mark ? "active" : ""}`}
+              >
+                {mark >= 1000 ? `${mark / 1000}k` : mark}
               </span>
             ))}
           </div>
