@@ -3,10 +3,13 @@
 Run the full scraping pipeline: Stage 1 → 2 → 3 → 4
 
 Usage:
-    python run_pipeline.py              # run all stages
-    python run_pipeline.py 3 4          # run only stages 3 and 4 (e.g. after editing parser)
+    python run_pipeline.py "honda civic"                # search for civic
+    python run_pipeline.py "toyota camry" --stages 3 4  # rerun stages 3-4 only
+    python run_pipeline.py                              # interactive prompt
 """
 
+import argparse
+import os
 import subprocess
 import sys
 import time
@@ -23,11 +26,26 @@ STAGES = [
 
 
 def main() -> int:
-    # If args given, only run those stage numbers
-    if len(sys.argv) > 1:
-        only = {int(a) for a in sys.argv[1:]}
-    else:
-        only = {s[0] for s in STAGES}
+    parser = argparse.ArgumentParser(description="Run car scraping pipeline")
+    parser.add_argument("query", nargs="?", default=None,
+                        help='Search query, e.g. "honda civic"')
+    parser.add_argument("--stages", nargs="*", type=int,
+                        help="Only run these stage numbers (default: all)")
+    args = parser.parse_args()
+
+    query = args.query
+    if not query:
+        query = input("🔍 What car are you looking for? (e.g. honda civic): ").strip()
+        if not query:
+            print("No query provided. Exiting.")
+            return 1
+
+    only = set(args.stages) if args.stages else {s[0] for s in STAGES}
+
+    env = os.environ.copy()
+    env["CAR_QUERY"] = query
+
+    print(f"\n  🔍 Query: \"{query}\"")
 
     start = time.time()
 
@@ -42,6 +60,7 @@ def main() -> int:
         result = subprocess.run(
             [sys.executable, str(PIPELINE_DIR / filename)],
             cwd=str(PIPELINE_DIR),
+            env=env,
         )
 
         if result.returncode != 0:

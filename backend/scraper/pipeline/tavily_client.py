@@ -10,6 +10,7 @@ Data directory layout (relative to backend/):
 
 import os
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -38,6 +39,22 @@ def stage_dir(stage: int) -> Path:
     d = STAGE_DIRS[stage]
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def query_slug(query: str | None = None) -> str:
+    """Convert a car query into a filename-safe slug.
+
+    'toyota camry' → 'toyota_camry'
+    'BMW M3'       → 'bmw_m3'
+    'ford f-150'   → 'ford_f-150'
+
+    Falls back to CAR_QUERY env var if no query given.
+    """
+    q = query or os.environ.get("CAR_QUERY", "")
+    slug = q.strip().lower()
+    slug = re.sub(r"[^\w\s-]", "", slug)   # keep letters, digits, hyphens
+    slug = re.sub(r"\s+", "_", slug)        # spaces → underscores
+    return slug or "unknown"
 
 
 def cache(data: dict, name: str, stage: int = 1) -> str:

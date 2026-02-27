@@ -2,30 +2,39 @@
 """
 Stage 3 — Enrich listing pages by calling Tavily /extract on listing URLs.
 
-Reads:  data/craigslist/02_links/toyota_camry_links.csv
-Writes: data/craigslist/03_listing_pages/listing_pages.json
-        data/craigslist/03_listing_pages/listing_pages_index.csv
-        data/craigslist/03_listing_pages/listing_pages.jsonl
+Reads:  data/craigslist/02_links/filtered_links_{slug}.csv
+Writes: data/craigslist/03_listing_pages/listing_pages_{slug}.json
+        data/craigslist/03_listing_pages/listing_pages_{slug}_index.csv
+        data/craigslist/03_listing_pages/listing_pages_{slug}.jsonl
 """
 
 from __future__ import annotations
 
 import csv
 import json
+import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from tavily_client import client, stage_dir
+from tavily_client import client, stage_dir, query_slug
+
+CAR_QUERY = os.environ.get("CAR_QUERY")
+if not CAR_QUERY:
+    print("ERROR: CAR_QUERY env var not set. Use run_pipeline.py.", file=sys.stderr)
+    sys.exit(1)
+
+SLUG = query_slug(CAR_QUERY)
 
 # ── Paths ──
-INPUT_CSV = stage_dir(2) / "toyota_camry_links.csv"
+INPUT_CSV = stage_dir(2) / f"filtered_links_{SLUG}.csv"
 OUT_DIR = stage_dir(3)
-OUTPUT_JSON = OUT_DIR / "listing_pages.json"
-OUTPUT_INDEX_CSV = OUT_DIR / "listing_pages_index.csv"
-OUTPUT_JSONL = OUT_DIR / "listing_pages.jsonl"
+OUTPUT_JSON = OUT_DIR / f"listing_pages_{SLUG}.json"
+OUTPUT_INDEX_CSV = OUT_DIR / f"listing_pages_{SLUG}_index.csv"
+OUTPUT_JSONL = OUT_DIR / f"listing_pages_{SLUG}.jsonl"
 
 TAVILY_URLS_PER_CALL = 20
 SLEEP_SECONDS = 0.0
@@ -125,11 +134,12 @@ def write_normalized_jsonl(path: Path, results: List[Dict[str, Any]], source_csv
 
 def main() -> int:
     if not INPUT_CSV.exists():
-        raise SystemExit(f"Missing input: {INPUT_CSV} (run Stage 2 first)")
+        raise SystemExit(f"Missing input: {INPUT_CSV}\nRun Stage 2 first.")
 
     urls = read_urls(INPUT_CSV)
-    batches = chunk(urls, TAVILY_URLS_PER_CALL)
+    print(f"📋 {len(urls)} listing URLs to extract for \"{CAR_QUERY}\"")
 
+    batches = chunk(urls, TAVILY_URLS_PER_CALL)
     all_results: List[Dict[str, Any]] = []
 
     for idx, b in enumerate(batches[:MAX_CALLS], start=1):
@@ -141,6 +151,7 @@ def main() -> int:
 
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "query": CAR_QUERY,
         "source_csv": str(INPUT_CSV),
         "results": all_results,
     }
