@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import CarCard from "@/components/CarCard";
+import { sortCarsByScoreDesc } from "@/lib/scoringSort";
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -42,7 +43,11 @@ export default function ResultsPage() {
   }
 
   // Sort
-  cars.sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
+  if (sortBy === "overallScore") {
+    cars = sortCarsByScoreDesc(cars);
+  } else {
+    cars.sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
+  }
 
   return (
     <div className="container">

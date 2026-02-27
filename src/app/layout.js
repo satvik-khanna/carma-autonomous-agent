@@ -1,9 +1,9 @@
 import '@/styles/globals.css';
 
 export const metadata = {
-    title: 'Carma — Smart Car Buy & Rent Recommendations',
-    description: 'Find your perfect car. Carma aggregates listings from top car sites and uses AI to help you decide whether to buy or rent.',
-    keywords: ['cars', 'buy car', 'rent car', 'car comparison', 'car recommendation'],
+    title: 'Carma — Smart Car Buying Recommendations',
+    description: 'Find your perfect car purchase. Carma aggregates listings from top car sites and scores each listing from scraped attributes.',
+    keywords: ['cars', 'buy car', 'used car', 'car comparison', 'car recommendation'],
 };
 
 export default function RootLayout({ children }) {

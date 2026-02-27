@@ -3,13 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import SearchForm from "@/components/SearchForm";
+import { sortCarsByScoreDesc } from "@/lib/scoringSort";
 
 export default function HomePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState("");
 
   const handleSearch = async (formData) => {
     setLoading(true);
+    setLoadingMsg("🔍 Searching for the best deals...");
 
     try {
       // Step 1: Search for cars via Tavily
@@ -80,9 +83,12 @@ export default function HomePage() {
 
       if (enrichedListings.length === 0) {
         setLoading(false);
+        setLoadingMsg("");
         alert("No car listings found. Try a different search.");
         return;
       }
+
+      setLoadingMsg(`🤖 Ranking ${enrichedListings.length} listings...`);
 
       // Step 3: Rank the cars via OpenAI
       const rankRes = await fetch("/api/rank", {
@@ -100,14 +106,18 @@ export default function HomePage() {
       });
 
       const rankData = await rankRes.json();
+      const rankedListings = sortCarsByScoreDesc(
+        rankData.rankings || searchData.listings,
+      );
 
       // Store results in sessionStorage for the results page
       sessionStorage.setItem(
         "carma-results",
         JSON.stringify({
-          rankings: rankData.rankings || searchData.listings,
+          rankings: rankedListings,
           query: formData.query,
           preferences: formData,
+          source: searchData.source || "unknown",
           timestamp: new Date().toISOString(),
         }),
       );
@@ -118,6 +128,7 @@ export default function HomePage() {
       alert("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+      setLoadingMsg("");
     }
   };
 
@@ -135,7 +146,11 @@ export default function HomePage() {
           </p>
 
           <div className="animate-fade-in-up animate-delay-2">
-            <SearchForm onSearch={handleSearch} loading={loading} />
+            <SearchForm
+              onSearch={handleSearch}
+              loading={loading}
+              loadingMsg={loadingMsg}
+            />
           </div>
         </div>
       </section>
