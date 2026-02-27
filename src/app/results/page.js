@@ -70,7 +70,6 @@ export default function ResultsPage() {
                             <option value="overallScore">Overall Score</option>
                             <option value="valueScore">Value Score</option>
                             <option value="buyScore">Buy Score</option>
-                            <option value="rentScore">Rent Score</option>
                             <option value="matchScore">Match Score</option>
                             <option value="priceNumeric">Price (High to Low)</option>
                         </select>
@@ -84,10 +83,9 @@ export default function ResultsPage() {
                             value={filterRecommendation}
                             onChange={(e) => setFilterRecommendation(e.target.value)}
                         >
-                            <option value="all">All Recommendations</option>
-                            <option value="buy">🟢 Buy</option>
-                            <option value="rent">🟡 Rent</option>
-                            <option value="consider">🔵 Consider</option>
+                            <option value="all">All Results</option>
+                            <option value="buy">🟢 Great Deal</option>
+                            <option value="consider">🟡 Consider</option>
                         </select>
                     </div>
 
@@ -181,8 +179,8 @@ export default function ResultsPage() {
 
                         <div className="detail-recommendation" style={{ marginBottom: '1.5rem' }}>
                             <h4>
-                                {selectedCar.recommendation === 'buy' ? '🟢' : selectedCar.recommendation === 'rent' ? '🟡' : '🔵'}
-                                {' '}AI Recommendation: {selectedCar.recommendation?.toUpperCase() || 'CONSIDER'}
+                                {selectedCar.recommendation === 'buy' ? '🟢' : '🟡'}
+                                {' '}AI Verdict: {selectedCar.recommendation === 'buy' ? 'GREAT DEAL' : 'CONSIDER'}
                             </h4>
                             <p>{selectedCar.aiExplanation}</p>
                         </div>
@@ -191,8 +189,7 @@ export default function ResultsPage() {
                             <ScoreBarInline label="Overall" score={selectedCar.overallScore} variant="purple" />
                             <ScoreBarInline label="Value" score={selectedCar.valueScore} variant="purple" />
                             <ScoreBarInline label="Buy Score" score={selectedCar.buyScore} variant="green" />
-                            <ScoreBarInline label="Rent Score" score={selectedCar.rentScore} variant="orange" />
-                            <ScoreBarInline label="Match" score={selectedCar.matchScore} variant="purple" />
+                            <ScoreBarInline label="Match" score={selectedCar.matchScore} variant="orange" />
                         </div>
 
                         {selectedCar.description && (

@@ -6,6 +6,9 @@ import RankingBadge from './RankingBadge';
 export default function CarCard({ car, rank, onClick }) {
     const placeholderGradient = `linear-gradient(135deg, hsl(${(rank * 40) % 360}, 60%, 25%), hsl(${(rank * 40 + 60) % 360}, 60%, 15%))`;
 
+    const overallScore = car.overallScore || 5;
+    const scoreColor = overallScore >= 7 ? '#22c55e' : overallScore >= 5 ? '#eab308' : '#ef4444';
+
     return (
         <div className="car-card" onClick={() => onClick?.(car)} role="button" tabIndex={0}>
             <div className="car-card-image">
@@ -29,6 +32,22 @@ export default function CarCard({ car, rank, onClick }) {
 
                 <div className="car-card-rank">#{rank}</div>
 
+                <div style={{
+                    position: 'absolute',
+                    top: '0.5rem',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: scoreColor,
+                    color: '#000',
+                    fontWeight: 800,
+                    fontSize: '0.85rem',
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                }}>
+                    {overallScore}/10
+                </div>
+
                 <div className="car-card-badges">
                     {car.recommendation && <RankingBadge recommendation={car.recommendation} />}
                 </div>
@@ -37,9 +56,11 @@ export default function CarCard({ car, rank, onClick }) {
             <div className="car-card-body">
                 <h3 className="car-card-title">{car.title}</h3>
                 <p className="car-card-subtitle">
-                    {[car.year, car.mileage ? `${Number(car.mileage).toLocaleString()} mi` : null]
-                        .filter(Boolean)
-                        .join(' · ') || 'Details available on listing'}
+                    {[
+                        car.year,
+                        car.mileage ? `${Number(car.mileage).toLocaleString()} mi` : null,
+                        car.distanceMiles ? `📍 ${car.distanceMiles} mi away` : null,
+                    ].filter(Boolean).join(' · ') || 'Details available on listing'}
                 </p>
 
                 <div className="car-card-price">
@@ -47,10 +68,20 @@ export default function CarCard({ car, rank, onClick }) {
                     {car.price && <span className="price-label"> asking price</span>}
                 </div>
 
+                {car.estimatedMaintenanceCost && (
+                    <div style={{
+                        fontSize: '0.75rem',
+                        color: car.estimatedMaintenanceCost <= 500 ? '#22c55e' : car.estimatedMaintenanceCost >= 1200 ? '#ef4444' : 'var(--color-text-secondary)',
+                        marginBottom: '0.75rem',
+                    }}>
+                        🔧 ~${car.estimatedMaintenanceCost}/yr maintenance
+                    </div>
+                )}
+
                 <div className="car-card-scores">
                     <ScoreBar label="Value" score={car.valueScore || 5} variant="purple" />
                     <ScoreBar label="Buy Score" score={car.buyScore || 5} variant="green" />
-                    <ScoreBar label="Rent Score" score={car.rentScore || 5} variant="orange" />
+                    <ScoreBar label="Match" score={car.matchScore || 5} variant="orange" />
                 </div>
 
                 {car.aiExplanation && (
@@ -62,6 +93,7 @@ export default function CarCard({ car, rank, onClick }) {
                 <div className="car-card-footer">
                     <span className="car-card-source">
                         📍 {car.source}
+                        {car.location && ` · ${car.location}`}
                     </span>
                     <a
                         href={car.url}

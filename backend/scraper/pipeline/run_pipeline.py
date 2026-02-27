@@ -18,10 +18,11 @@ from pathlib import Path
 PIPELINE_DIR = Path(__file__).resolve().parent
 
 STAGES = [
-    (1, "stage_01_harvest_search.py",        "Harvesting search pages"),
-    (2, "stage_02_parse_links.py",           "Parsing links from extracts"),
-    (3, "stage_03_extract_listing_pages.py", "Extracting individual listings"),
-    (4, "stage_04_parse_structured.py",      "Parsing structured fields"),
+    (1, "stage_01_harvest_search.py",              "Harvesting search pages (Tavily Search)"),
+    (2, "stage_02_parse_links.py",                 "Parsing links from extracts"),
+    (3, "stage_03_extract_listing_pages_tavily.py", "Scraping individual listings (BeautifulSoup)"),
+    (4, "stage_04_parse_structured.py",            "Parsing structured fields"),
+    (5, "stage_05_research.py",                    "Researching reliability & market value (Tavily Search)"),
 ]
 
 

@@ -2,14 +2,13 @@
 
 import { useState } from 'react';
 
-export default function SearchForm({ onSearch, loading }) {
+export default function SearchForm({ onSearch, loading, loadingMsg }) {
     const [formData, setFormData] = useState({
         query: '',
         location: '',
         budget: '',
         useCase: 'daily commute',
         duration: '3+ years',
-        preference: 'open to both',
     });
 
     const handleChange = (e) => {
@@ -40,26 +39,26 @@ export default function SearchForm({ onSearch, loading }) {
                 </div>
 
                 <div className="input-group">
-                    <label htmlFor="location">Location</label>
+                    <label htmlFor="location">Your Location</label>
                     <input
                         id="location"
                         name="location"
                         type="text"
                         className="input"
-                        placeholder="City or ZIP code"
+                        placeholder="e.g. San Jose, 94043..."
                         value={formData.location}
                         onChange={handleChange}
                     />
                 </div>
 
                 <div className="input-group">
-                    <label htmlFor="budget">Monthly Budget ($)</label>
+                    <label htmlFor="budget">Max Budget ($)</label>
                     <input
                         id="budget"
                         name="budget"
                         type="number"
                         className="input"
-                        placeholder="e.g. 500"
+                        placeholder="e.g. 25000"
                         value={formData.budget}
                         onChange={handleChange}
                     />
@@ -86,7 +85,7 @@ export default function SearchForm({ onSearch, loading }) {
                 </div>
 
                 <div className="input-group">
-                    <label htmlFor="duration">How Long Do You Need It?</label>
+                    <label htmlFor="duration">How Long Do You Plan to Keep It?</label>
                     <select
                         id="duration"
                         name="duration"
@@ -94,25 +93,9 @@ export default function SearchForm({ onSearch, loading }) {
                         value={formData.duration}
                         onChange={handleChange}
                     >
-                        <option value="less than 6 months">Less than 6 months</option>
-                        <option value="6 months to 1 year">6 months – 1 year</option>
+                        <option value="less than 1 year">Less than 1 year</option>
                         <option value="1-3 years">1–3 years</option>
-                        <option value="3+ years">3+ years</option>
-                    </select>
-                </div>
-
-                <div className="input-group">
-                    <label htmlFor="preference">Buy or Rent?</label>
-                    <select
-                        id="preference"
-                        name="preference"
-                        className="input"
-                        value={formData.preference}
-                        onChange={handleChange}
-                    >
-                        <option value="open to both">Open to Both</option>
-                        <option value="prefer buying">Prefer Buying</option>
-                        <option value="prefer renting">Prefer Renting</option>
+                        <option value="3+ years">3+ years (long term)</option>
                     </select>
                 </div>
             </div>
@@ -133,6 +116,17 @@ export default function SearchForm({ onSearch, loading }) {
                         <>🔍 Find My Car</>
                     )}
                 </button>
+                {loadingMsg && (
+                    <p style={{
+                        marginTop: '1rem',
+                        color: 'var(--color-primary)',
+                        fontSize: '0.9rem',
+                        textAlign: 'center',
+                        animation: 'pulse 1.5s ease-in-out infinite',
+                    }}>
+                        {loadingMsg}
+                    </p>
+                )}
             </div>
         </form>
     );

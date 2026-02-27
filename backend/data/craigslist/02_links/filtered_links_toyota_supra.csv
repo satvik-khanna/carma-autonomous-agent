@@ -1,0 +1,6 @@
+rank,search_url,url,title,source_listing_id,listing_type,matches_query
+2,https://modesto.craigslist.org/search/cta?query=Toyota+Supra&sort=rel,https://modesto.craigslist.org/ctd/d/modesto-1988-toyota-supra-turbo/7916344818.html,1988 Toyota Supra Turbo,7916344818,ctd,True
+2,https://sacramento.craigslist.org/search/cta?query=Toyota+Supra&sort=rel&min_price=20000,https://sacramento.craigslist.org/ctd/d/roseville-1989-toyota-supra-classic/7916197507.html,1989 Toyota Supra classic,7916197507,ctd,True
+2,https://sfbay.craigslist.org/search/cta?query=Toyota+Supra&sort=rel&min_price=25000,https://sfbay.craigslist.org/sby/ctd/d/san-jose-1995-toyota-supra-veilside/7915639433.html,1995 Toyota Supra Veilside | nissan 300zx fairlady mitsubishi 3000gt,7915639433,ctd,True
+3,https://sfbay.craigslist.org/search/cta?query=Toyota+Supra&sort=rel&min_price=25000,https://sfbay.craigslist.org/sby/cto/d/san-jose-2023-toyota-gr-supra-30/7914191477.html,2023 Toyota GR Supra 3.0 Premium MT White,7914191477,cto,True
+4,https://sfbay.craigslist.org/search/cta?query=Toyota+Supra&sort=rel&min_price=25000,https://sfbay.craigslist.org/eby/ctd/d/walnut-creek-2020-toyota-supra-30/7913189602.html,2020 Toyota Supra 3.0,7913189602,ctd,True

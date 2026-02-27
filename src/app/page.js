@@ -7,32 +7,37 @@ import SearchForm from '@/components/SearchForm';
 export default function HomePage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [loadingMsg, setLoadingMsg] = useState('');
 
     const handleSearch = async (formData) => {
         setLoading(true);
+        setLoadingMsg('🔍 Searching for the best deals...');
 
         try {
-            // Step 1: Search for cars via Tavily
+            // Step 1: Search for cars (scraped data or live Tavily)
             const searchRes = await fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     query: formData.query,
                     location: formData.location,
-                    maxResults: 10,
+                    maxResults: 20,
                     includeRentals: formData.preference !== 'prefer buying',
                 }),
             });
 
             const searchData = await searchRes.json();
 
-            if (!searchData.success || searchData.listings.length === 0) {
+            if (!searchData.success || !searchData.listings || searchData.listings.length === 0) {
                 setLoading(false);
+                setLoadingMsg('');
                 alert('No car listings found. Try a different search.');
                 return;
             }
 
-            // Step 2: Rank the cars via OpenAI
+            setLoadingMsg(`🤖 Ranking ${searchData.listings.length} listings...`);
+
+            // Step 2: Rank the cars with our scoring engine
             const rankRes = await fetch('/api/rank', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -50,13 +55,19 @@ export default function HomePage() {
 
             const rankData = await rankRes.json();
 
+            // Use ranked results, or fall back to search results if ranking fails
+            const finalListings = rankData.rankings && rankData.rankings.length > 0
+                ? rankData.rankings
+                : searchData.listings;
+
             // Store results in sessionStorage for the results page
             sessionStorage.setItem(
                 'carma-results',
                 JSON.stringify({
-                    rankings: rankData.rankings || searchData.listings,
+                    rankings: finalListings,
                     query: formData.query,
                     preferences: formData,
+                    source: searchData.source || 'unknown',
                     timestamp: new Date().toISOString(),
                 })
             );
@@ -67,6 +78,7 @@ export default function HomePage() {
             alert('Something went wrong. Please try again.');
         } finally {
             setLoading(false);
+            setLoadingMsg('');
         }
     };
 
@@ -79,12 +91,12 @@ export default function HomePage() {
                         <span className="gradient-text">Smarter</span>
                     </h1>
                     <p className="hero-subtitle animate-fade-in-up animate-delay-1">
-                        Carma searches top car sites, ranks every listing with AI, and tells you
-                        whether to <strong>buy or rent</strong> — personalized to your budget and lifestyle.
+                        Carma scrapes Craigslist, researches reliability, and ranks every listing —
+                        so you find the <strong>best deal</strong> personalized to your budget and needs.
                     </p>
 
                     <div className="animate-fade-in-up animate-delay-2">
-                        <SearchForm onSearch={handleSearch} loading={loading} />
+                        <SearchForm onSearch={handleSearch} loading={loading} loadingMsg={loadingMsg} />
                     </div>
                 </div>
             </section>
@@ -109,16 +121,16 @@ export default function HomePage() {
                             {
                                 icon: '🌐',
                                 title: 'Aggregate',
-                                desc: 'We search Cars.com, CarGurus, AutoTrader and more to find every listing.',
+                                desc: 'We scrape Craigslist across Northern California to find every listing.',
                             },
                             {
-                                icon: '🤖',
-                                title: 'AI Ranking',
-                                desc: 'OpenAI analyzes each car and scores it on value, buy potential, and rent suitability.',
+                                icon: '🔬',
+                                title: 'Research',
+                                desc: 'Our agent researches reliability, recalls, market value, and owner reviews.',
                             },
                             {
                                 icon: '✅',
-                                title: 'Decide',
+                                title: 'Rank & Decide',
                                 desc: 'See ranked results with buy vs rent recommendations tailored to you.',
                             },
                         ].map((step, i) => (
