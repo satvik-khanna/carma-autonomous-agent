@@ -75,7 +75,7 @@ MILEAGE_LABEL_RE = re.compile(
     r"(?i)\b(?:mileage|miles?)\s*:\s*([0-9]{1,3}(?:,[0-9]{3})*[0-9]*)"
 )
 PHONE_RE = re.compile(
-    r"\b(?:\+?1[\s.-]?)?(?:\(\s*\d{3}\s*\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b"
+    r"(?<!\d)(?:\+?1[\s.-]?)?(?:\(\s*\d{3}\s*\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)"
 )
 MARKDOWN_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 
@@ -186,7 +186,9 @@ def strip_markdown_links(s: str) -> str:
 def strip_tags(s: str) -> str:
     s = re.sub(r"<script\b[^>]*>.*?</script>", " ", s, flags=re.I | re.DOTALL)
     s = re.sub(r"<style\b[^>]*>.*?</style>", " ", s, flags=re.I | re.DOTALL)
-    s = re.sub(r"<[^>]+>", " ", s)
+    # Limit tag match to 200 chars — prevents malformed tags like </big
+    # from eating thousands of chars of content until the next >
+    s = re.sub(r"<[^>]{1,200}>", " ", s)
     return re.sub(r"\s+", " ", s).strip()
 
 
@@ -213,8 +215,19 @@ def choose_text(rec: Dict[str, Any]) -> str:
     text = raw if isinstance(raw, str) and raw.strip() else (
         content if isinstance(content, str) else ""
     )
+    # Only strip HTML tags if the content is actually HTML (has 3+ real tags).
+    # Tavily returns markdown for CL pages — stray fragments like </big
+    # should NOT trigger strip_tags, which destroys newlines and breaks
+    # the dealer bold parser.
     if "<" in text and ">" in text:
-        text = strip_tags(text)
+        real_tags = len(re.findall(
+            r"<(?:div|span|p|a|img|table|tr|td|th|h[1-6]|br|hr|ul|ol|li"
+            r"|b|i|em|strong|section|article|header|footer|nav|form|input"
+            r"|script|style|link|meta)\b",
+            text, re.I,
+        ))
+        if real_tags >= 3:
+            text = strip_tags(text)
     return text
 
 
@@ -268,11 +281,25 @@ def _parse_dealer_attrs(text: str) -> Dict[str, str]:
     return attrs
 
 
+def _trim_for_nl(text: str) -> str:
+    """Trim text to listing content only, excluding CL boilerplate and SEO spam.
+
+    Dealer pages often end with keyword-stuffed SEO blocks that cause
+    false positives (e.g. 'HYBRID' matching from unrelated model names).
+    """
+    # Cut at CL footer marker
+    postid_idx = text.find("post id:")
+    trimmed = text[:postid_idx] if postid_idx > 0 else text
+    # Limit to first 6000 chars — actual listing data is near the top
+    return trimmed[:6000]
+
+
 def _parse_nl_attrs(text: str) -> Dict[str, str]:
-    """Layer 3: Natural language fallbacks."""
+    """Layer 3: Natural language fallbacks (on trimmed text)."""
+    trimmed = _trim_for_nl(text)
     attrs: Dict[str, str] = {}
     for key, pat in NL_PATTERNS.items():
-        m = pat.search(text or "")
+        m = pat.search(trimmed or "")
         if m:
             attrs[key] = m.group(1)
     return attrs

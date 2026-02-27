@@ -144,7 +144,7 @@ def main() -> int:
 
     for idx, b in enumerate(batches[:MAX_CALLS], start=1):
         print(f"📄 Extracting batch {idx}/{len(batches)} ({len(b)} urls)")
-        resp = client.extract(urls=b)
+        resp = client.extract(urls=b, extract_depth="advanced", timeout=120)
         all_results.extend(resp.get("results", []) or [])
         if SLEEP_SECONDS > 0:
             time.sleep(SLEEP_SECONDS)
