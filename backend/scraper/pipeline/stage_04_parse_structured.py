@@ -737,6 +737,12 @@ def build_record(rec: Dict[str, Any]) -> Dict[str, Any]:
     title = extract_title(rec, text)
 
     year, make, model, trim = parse_year_make_model_trim(title)
+
+    if not year:
+        m = re.search(r"\b(19\d{2}|20\d{2})\b", text or "")
+        if m:
+            year = int(m.group(1))
+
     price_usd = first_int_from_price(text)
 
     # Three-layer attribute extraction
