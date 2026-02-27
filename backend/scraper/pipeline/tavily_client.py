@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from tavily import TavilyClient
 
 load_dotenv()
-client = TavilyClient(api_key=os.getenv("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"))
+client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
 # ── Resolve data root: backend/data/craigslist/ ──
 # pipeline/ lives at backend/scraper/pipeline/
