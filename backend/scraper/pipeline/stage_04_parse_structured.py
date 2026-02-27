@@ -68,7 +68,11 @@ OUT_CSV = OUT_DIR / f"listings_structured_{SLUG}.csv"
 VIN_RE = re.compile(r"\b([A-HJ-NPR-Z0-9]{17})\b")
 PRICE_RE = re.compile(r"(?<!\w)\$([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?!\w)")
 MILES_RE = re.compile(
-    r"\b([0-9]{1,3}(?:,[0-9]{3})*[0-9]{2,})\s*(?:mi|miles)\b", re.IGNORECASE
+    r"\b(\d{1,3}(?:,\d{3})+|\d{3,})\s*(?:mi|miles)\b", re.IGNORECASE
+)
+# Plain-text "Mileage: 36,374" or "Miles: 89000" (dealer specs without bold)
+MILEAGE_LABEL_RE = re.compile(
+    r"(?i)\b(?:mileage|miles?)\s*:\s*([0-9]{1,3}(?:,[0-9]{3})*[0-9]*)"
 )
 PHONE_RE = re.compile(
     r"\b(?:\+?1[\s.-]?)?(?:\(\s*\d{3}\s*\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}\b"
@@ -593,14 +597,41 @@ def first_int_from_price(text: str) -> Optional[int]:
 
 
 def first_int_from_miles(text: str) -> Optional[int]:
-    m = MILES_RE.search(text or "")
-    if not m:
-        return None
-    try:
-        val = int(m.group(1).replace(",", ""))
-        return val if 100 <= val <= 500000 else None
-    except ValueError:
-        return None
+    """Extract mileage from 'N miles' in text, skipping return-policy language.
+
+    Skips false positives like '5 days or 250 miles' (money-back guarantees).
+    """
+    for m in MILES_RE.finditer(text or ""):
+        # Context check: skip "X days/hours or N miles" (return policy)
+        pre = text[max(0, m.start() - 20):m.start()].lower()
+        if " or " in pre and any(
+            w in pre for w in ("day", "hour", "week", "month")
+        ):
+            continue
+        try:
+            val = int(m.group(1).replace(",", ""))
+            if 100 <= val <= 500000:
+                return val
+        except ValueError:
+            continue
+    return None
+
+
+def extract_labeled_mileage(text: str) -> Optional[int]:
+    """Extract mileage from 'Mileage: N' or 'MILEAGE: N' labels.
+
+    Catches plain-text dealer specifications that aren't bold-markdown
+    and don't use CL's 'odometer:' key.
+    """
+    m = MILEAGE_LABEL_RE.search(text or "")
+    if m:
+        try:
+            val = int(m.group(1).replace(",", ""))
+            if 100 <= val <= 500000:
+                return val
+        except ValueError:
+            pass
+    return None
 
 
 def parse_odometer(attrs: Dict[str, str]) -> Optional[int]:
@@ -680,15 +711,15 @@ def build_record(rec: Dict[str, Any]) -> Dict[str, Any]:
 
     year, make, model, trim = parse_year_make_model_trim(title)
     price_usd = first_int_from_price(text)
-    mileage = first_int_from_miles(text)
 
     # Three-layer attribute extraction
     attrs = extract_all_attrs(text)
 
-    # Odometer from attrs overrides text-based mileage
+    # Mileage priority: CL odometer attr → labeled "Mileage: N" → "N miles" in text
     odo = parse_odometer(attrs)
-    if odo is not None:
-        mileage = odo
+    labeled_mi = extract_labeled_mileage(text)
+    text_mi = first_int_from_miles(text)
+    mileage = odo or labeled_mi or text_mi
 
     vin = first_vin(text)
 
