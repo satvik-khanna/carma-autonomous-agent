@@ -1,13 +1,14 @@
-'use client';
+"use client";
 
 export default function RankingBadge({ recommendation }) {
-    const config = {
-        buy: { label: '🟢 Buy', className: 'badge-buy' },
-        rent: { label: '🟡 Rent', className: 'badge-rent' },
-        consider: { label: '🔵 Consider', className: 'badge-neutral' },
-    };
+  // We map the old recommendation values to a more generic AI-themed label
+  const config = {
+    buy: { label: "✨ Top Match" },
+    rent: { label: "🔥 Great Value" },
+    consider: { label: "⚡ Good Option" },
+  };
 
-    const { label, className } = config[recommendation] || config.consider;
+  const { label } = config[recommendation] || config.consider;
 
-    return <span className={`badge ${className}`}>{label}</span>;
+  return <span className="badge">{label}</span>;
 }

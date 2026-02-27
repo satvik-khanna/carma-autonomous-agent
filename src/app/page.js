@@ -20,7 +20,6 @@ export default function HomePage() {
           query: formData.query,
           location: formData.location,
           maxResults: 10,
-          includeRentals: formData.preference !== "prefer buying",
         }),
       });
 
@@ -96,7 +95,6 @@ export default function HomePage() {
             useCase: formData.useCase,
             duration: formData.duration,
             location: formData.location,
-            preference: formData.preference,
           },
         }),
       });
@@ -132,9 +130,8 @@ export default function HomePage() {
             <span className="gradient-text">Smarter</span>
           </h1>
           <p className="hero-subtitle animate-fade-in-up animate-delay-1">
-            Carma searches top car sites, ranks every listing with AI, and tells
-            you whether to <strong>buy or rent</strong> — personalized to your
-            budget and lifestyle.
+            Carma searches top car sites and ranks every listing with an AI
+            Match Score, personalized to your budget and lifestyle.
           </p>
 
           <div className="animate-fade-in-up animate-delay-2">
@@ -176,12 +173,12 @@ export default function HomePage() {
               {
                 icon: "🤖",
                 title: "AI Ranking",
-                desc: "OpenAI analyzes each car and scores it on value, buy potential, and rent suitability.",
+                desc: "OpenAI analyzes each car and provides a personalized AI Match Score.",
               },
               {
                 icon: "✅",
                 title: "Decide",
-                desc: "See ranked results with buy vs rent recommendations tailored to you.",
+                desc: "See ranked results with personalized AI recommendations tailored to you.",
               },
             ].map((step, i) => (
               <div

@@ -18,12 +18,6 @@ const DURATIONS = [
   { value: "3+ years", label: "3+ yr" },
 ];
 
-const PREFERENCES = [
-  { value: "prefer buying", label: "Buy", icon: "🔑" },
-  { value: "open to both", label: "Either", icon: "⚖️" },
-  { value: "prefer renting", label: "Rent", icon: "📋" },
-];
-
 const BUDGET_MARKS = [200, 400, 600, 800, 1000, 1500, 2000, 3000];
 
 function formatBudget(value) {
@@ -38,7 +32,6 @@ export default function SearchForm({ onSearch, loading }) {
     budget: "800",
     useCase: "daily commute",
     duration: "3+ years",
-    preference: "open to both",
   });
 
   const handleChange = (e) => {
@@ -153,49 +146,23 @@ export default function SearchForm({ onSearch, loading }) {
         </div>
       </div>
 
-      {/* --- Duration & Preference Side-by-Side --- */}
+      {/* --- Duration --- */}
       <div className="sf-section">
-        <div className="sf-row sf-row-equal">
-          {/* Duration */}
-          <div className="sf-field">
-            <label className="sf-label">
-              <span className="sf-label-icon">⏱️</span>
-              How Long?
-            </label>
-            <div className="sf-segment">
-              {DURATIONS.map((d) => (
-                <button
-                  key={d.value}
-                  type="button"
-                  className={`sf-segment-btn ${formData.duration === d.value ? "sf-segment-active" : ""}`}
-                  onClick={() => setField("duration", d.value)}
-                >
-                  {d.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Buy / Rent Preference */}
-          <div className="sf-field">
-            <label className="sf-label">
-              <span className="sf-label-icon">🤔</span>
-              Buy or Rent?
-            </label>
-            <div className="sf-segment sf-segment-pref">
-              {PREFERENCES.map((p) => (
-                <button
-                  key={p.value}
-                  type="button"
-                  className={`sf-segment-btn ${formData.preference === p.value ? "sf-segment-active" : ""}`}
-                  onClick={() => setField("preference", p.value)}
-                >
-                  <span className="sf-segment-icon">{p.icon}</span>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <label className="sf-label">
+          <span className="sf-label-icon">⏱️</span>
+          How Long?
+        </label>
+        <div className="sf-segment">
+          {DURATIONS.map((d) => (
+            <button
+              key={d.value}
+              type="button"
+              className={`sf-segment-btn ${formData.duration === d.value ? "sf-segment-active" : ""}`}
+              onClick={() => setField("duration", d.value)}
+            >
+              {d.label}
+            </button>
+          ))}
         </div>
       </div>
 
