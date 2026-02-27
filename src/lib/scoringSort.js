@@ -9,6 +9,8 @@ export function compareCarsByScoreDesc(a, b) {
         'conditionScore',
         'valueScore',
         'matchScore',
+        'reliabilityScore',
+        'researchSupportScore',
         'confidenceScore',
     ];
 

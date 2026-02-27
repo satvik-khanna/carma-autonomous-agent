@@ -50,7 +50,6 @@ export default function ResultsPage() {
             return 0;
         });
     }
-
     const closeModal = () => {
         setSelectedCar(null);
         setSelectedImageIndex(0);
@@ -66,13 +65,13 @@ export default function ResultsPage() {
                     {cars.length} Craigslist listings found · Highest score first · Searched at{' '}
                     {new Date(results.timestamp).toLocaleTimeString()}
                 </p>
-                {results.searchContext?.reliabilityIntent ? (
+                {results.searchContext?.reliabilityIntent && (
                     <p className="results-meta" style={{ marginTop: '0.5rem' }}>
                         {results.searchContext.researchApplied
                             ? 'Reddit reliability research was applied to re-score and re-rank these listings.'
                             : 'Reliability intent was detected, but Reddit research was unavailable, so the ranking fell back to listing-only signals.'}
                     </p>
-                ) : null}
+                )}
 
                 <div style={{
                     display: 'flex',
@@ -254,7 +253,7 @@ export default function ResultsPage() {
                             </div>
                         ) : null}
 
-                        {selectedCar.research ? (
+                        {selectedCar.research && (
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Reddit Research</h4>
                                 <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: 1.6 }}>
@@ -266,9 +265,9 @@ export default function ResultsPage() {
                                     </p>
                                 ) : null}
                             </div>
-                        ) : null}
+                        )}
 
-                        {selectedCar.description ? (
+                        {selectedCar.description && (
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Description</h4>
                                 <p style={{

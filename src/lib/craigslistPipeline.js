@@ -8,9 +8,42 @@ const PIPELINE_DIR = path.join(PROJECT_ROOT, 'backend', 'scraper', 'pipeline');
 const PIPELINE_SCRIPT = path.join(PIPELINE_DIR, 'run_pipeline.py');
 const PIPELINE_TIMEOUT_MS = 4 * 60 * 1000;
 const CURRENT_YEAR = new Date().getFullYear();
+const RELIABILITY_INTENT_PATTERNS = [
+    /\breliable\b/i,
+    /\breliability\b/i,
+    /\bdependable\b/i,
+    /\bdurable\b/i,
+    /\bbulletproof\b/i,
+    /\btrustworthy\b/i,
+    /\blow maintenance\b/i,
+    /\blong[-\s]lasting\b/i,
+    /\bproblem[-\s]?free\b/i,
+    /\btrouble[-\s]?free\b/i,
+    /\bno issues\b/i,
+];
 
 export async function searchCraigslistCars({ query, location, maxResults = 10 }) {
-    const dataFile = await ensureStructuredData(query);
+    const searchContext = analyzeSearchIntent(query);
+    const { dataFile, researchApplied } = await ensureStructuredData(searchContext.vehicleQuery, {
+        includeResearch: searchContext.reliabilityIntent,
+    });
+    const prepared = await loadAndPrepareListings({
+        dataFile,
+        query: searchContext.vehicleQuery,
+        location,
+        maxResults,
+    });
+
+    return {
+        listings: prepared.bestListings.map(stripInternalSearchFields),
+        searchContext: {
+            ...searchContext,
+            researchApplied,
+        },
+    };
+}
+
+async function loadAndPrepareListings({ dataFile, query, location, maxResults }) {
     const rawListings = JSON.parse(await fs.readFile(dataFile, 'utf-8'));
 
     const normalizedListings = rawListings
@@ -33,38 +66,70 @@ export async function searchCraigslistCars({ query, location, maxResults = 10 })
     const bestListings = rankSearchResults(filteredListings, query, location)
         .slice(0, maxResults);
 
-    return bestListings.map(stripInternalSearchFields);
+    return {
+        bestListings,
+        filteredCount: filteredListings.length,
+        rawCount: rawListings.length,
+    };
 }
 
-async function ensureStructuredData(query) {
-    const matchedFile = await findBestStructuredFile(query);
-    if (matchedFile) {
-        return matchedFile;
-    }
+async function ensureStructuredData(query, { includeResearch = false } = {}) {
+    if (includeResearch) {
+        const enrichedFile = await findBestDataFile(query, ['listings_enriched_']);
+        if (enrichedFile) {
+            return { dataFile: enrichedFile, researchApplied: true };
+        }
 
-    await runCraigslistPipeline(query);
+        const structuredFile = await findBestDataFile(query, ['listings_structured_']);
+        if (structuredFile) {
+            await runCraigslistPipeline(query, { stages: [5] });
+            const generatedEnrichedFile = await findBestDataFile(query, ['listings_enriched_']);
+            if (generatedEnrichedFile) {
+                return { dataFile: generatedEnrichedFile, researchApplied: true };
+            }
 
-    const generatedFile = await findBestStructuredFile(query);
-    if (generatedFile) {
-        return generatedFile;
+            return { dataFile: structuredFile, researchApplied: false };
+        }
+
+        await runCraigslistPipeline(query, { stages: [1, 2, 3, 4, 5] });
+        const generatedFile = await findBestDataFile(query, ['listings_enriched_', 'listings_structured_']);
+        if (generatedFile) {
+            return {
+                dataFile: generatedFile,
+                researchApplied: path.basename(generatedFile).startsWith('listings_enriched_'),
+            };
+        }
+    } else {
+        const matchedFile = await findBestDataFile(query, ['listings_structured_']);
+        if (matchedFile) {
+            return { dataFile: matchedFile, researchApplied: false };
+        }
+
+        await runCraigslistPipeline(query, { stages: [1, 2, 3, 4] });
+        const generatedFile = await findBestDataFile(query, ['listings_structured_']);
+        if (generatedFile) {
+            return { dataFile: generatedFile, researchApplied: false };
+        }
     }
 
     throw new Error(`Craigslist pipeline did not produce structured output for "${query}".`);
 }
 
-async function findBestStructuredFile(query) {
+async function findBestDataFile(query, prefixes) {
     const entries = await safeReadStructuredDir();
     const files = entries
-        .filter((entry) => entry.isFile() && entry.name.startsWith('listings_structured_') && entry.name.endsWith('.json'))
+        .filter((entry) => entry.isFile() && prefixes.some((prefix) => entry.name.startsWith(prefix)) && entry.name.endsWith('.json'))
         .map((entry) => entry.name);
 
-    const exactCandidates = slugCandidates(query).map(
-        (slug) => `listings_structured_${slug}.json`
-    );
+    for (const prefix of prefixes) {
+        const exactCandidates = slugCandidates(query).map(
+            (slug) => `${prefix}${slug}.json`
+        );
 
-    for (const candidate of exactCandidates) {
-        if (files.includes(candidate)) {
-            return path.join(STRUCTURED_DIR, candidate);
+        for (const candidate of exactCandidates) {
+            if (files.includes(candidate)) {
+                return path.join(STRUCTURED_DIR, candidate);
+            }
         }
     }
 
@@ -110,9 +175,12 @@ function scoreFileMatch(fileName, queryTokens) {
     return score;
 }
 
-async function runCraigslistPipeline(query) {
+async function runCraigslistPipeline(query, { stages = [1, 2, 3, 4] } = {}) {
     await new Promise((resolve, reject) => {
-        const child = spawn('python3', [PIPELINE_SCRIPT, query], {
+        const stageArgs = Array.isArray(stages) && stages.length > 0
+            ? ['--stages', ...stages.map(String)]
+            : [];
+        const child = spawn('python3', [PIPELINE_SCRIPT, query, ...stageArgs], {
             cwd: PIPELINE_DIR,
             env: {
                 ...process.env,
@@ -158,6 +226,7 @@ function normalizeCraigslistListing(listing, index, query, location) {
     const sellerPhoneCount = Array.isArray(listing.seller_phone_numbers)
         ? listing.seller_phone_numbers.length
         : 0;
+    const research = normalizeResearchData(listing.research);
 
     return {
         id: listing.id || `craigslist-${index}`,
@@ -184,6 +253,7 @@ function normalizeCraigslistListing(listing, index, query, location) {
         postedAt: listing.posted_at || null,
         updatedAt: listing.updated_at || null,
         sellerPhoneNumbers: listing.seller_phone_numbers || [],
+        research,
         attributes: {
             condition: listing.condition_raw || 'unknown',
             fuelType: listing.fuel || 'unknown',
@@ -200,6 +270,10 @@ function normalizeCraigslistListing(listing, index, query, location) {
             location: listing.location || null,
             queryMatchScore,
             locationMatchScore,
+            researchScore: research?.researchScore ?? null,
+            redditReliabilityScore: research?.reliabilityScore ?? null,
+            researchVerdict: research?.verdict ?? null,
+            reliabilityRating: research?.reliabilityRating ?? 'unknown',
         },
         searchSignals: {
             queryMatchScore,
@@ -517,6 +591,86 @@ function formatPipelineError(query, outputTail) {
     return `Craigslist pipeline failed for "${query}". ${cleaned}`;
 }
 
+function analyzeSearchIntent(query) {
+    const rawQuery = `${query || ''}`.trim();
+    const reliabilityIntent = RELIABILITY_INTENT_PATTERNS.some((pattern) => pattern.test(rawQuery));
+    const vehicleQuery = reliabilityIntent ? stripReliabilityIntent(rawQuery) : rawQuery;
+
+    return {
+        rawQuery,
+        vehicleQuery: vehicleQuery || rawQuery,
+        reliabilityIntent,
+    };
+}
+
+function stripReliabilityIntent(query) {
+    const patterns = [
+        /\blow maintenance\b/gi,
+        /\blong[-\s]lasting\b/gi,
+        /\bproblem[-\s]?free\b/gi,
+        /\btrouble[-\s]?free\b/gi,
+        /\bno issues\b/gi,
+        /\breliability\b/gi,
+        /\breliable\b/gi,
+        /\bdependable\b/gi,
+        /\bdurable\b/gi,
+        /\bbulletproof\b/gi,
+        /\btrustworthy\b/gi,
+    ];
+
+    let cleaned = `${query || ''}`;
+    for (const pattern of patterns) {
+        cleaned = cleaned.replace(pattern, ' ');
+    }
+
+    cleaned = cleaned
+        .replace(/\b(car|cars|vehicle|vehicles)\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return cleaned;
+}
+
+function normalizeResearchData(research) {
+    if (!research || typeof research !== 'object') {
+        return null;
+    }
+
+    const mechanicReliabilityScore = toFiniteNumber(research.mechanic_advice?.reliability_score);
+    const ownerSatisfactionScore = toFiniteNumber(research.ownership_experience?.satisfaction_score);
+    const shouldBuyConfidence = toFiniteNumber(research.should_i_buy?.confidence_score);
+    const highMileageConfidence = toFiniteNumber(research.high_mileage?.confidence_score);
+    const researchScore = toFiniteNumber(research.research_score);
+    const reliabilityScore = weightedAverage([
+        [mechanicReliabilityScore, 0.55],
+        [ownerSatisfactionScore, 0.2],
+        [highMileageConfidence, 0.15],
+        [shouldBuyConfidence, 0.1],
+    ]) ?? researchScore;
+
+    return {
+        researchScore,
+        reliabilityScore: reliabilityScore !== null ? Number(reliabilityScore.toFixed(1)) : null,
+        verdict: research.verdict || null,
+        reliabilityRating: research.mechanic_advice?.reliability_rating || 'unknown',
+        shouldBuyVerdict: research.should_i_buy?.reddit_verdict || 'unknown',
+        ownerSatisfaction: research.ownership_experience?.owner_satisfaction || 'unknown',
+        priceVerdict: research.costs_and_value?.price_verdict || 'unknown',
+        estimatedMarketValue: toFiniteNumber(research.costs_and_value?.estimated_market_value),
+        knownIssues: Array.isArray(research.mechanic_advice?.known_issues)
+            ? research.mechanic_advice.known_issues.slice(0, 6)
+            : [],
+        prePurchaseChecks: Array.isArray(research.mechanic_advice?.pre_purchase_checks)
+            ? research.mechanic_advice.pre_purchase_checks.slice(0, 4)
+            : [],
+        summary: research.should_i_buy?.summary
+            || research.mechanic_advice?.summary
+            || research.ownership_experience?.summary
+            || null,
+        source: research.source || 'reddit',
+    };
+}
+
 function computeQueryMatchScore(listing, query) {
     const tokens = tokenize(query);
     if (tokens.length === 0) return 0;
@@ -656,4 +810,22 @@ function buildImageSignature(images) {
 
 function toNumber(value) {
     return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function toFiniteNumber(value) {
+    return Number.isFinite(Number(value)) ? Number(value) : null;
+}
+
+function weightedAverage(weightedValues) {
+    let totalWeight = 0;
+    let weightedSum = 0;
+
+    for (const [value, weight] of weightedValues) {
+        if (value === null || value === undefined) continue;
+        totalWeight += weight;
+        weightedSum += value * weight;
+    }
+
+    if (!totalWeight) return null;
+    return weightedSum / totalWeight;
 }

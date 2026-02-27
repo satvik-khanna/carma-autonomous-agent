@@ -105,6 +105,17 @@ export default function CarCard({ car, rank, onClick }) {
                     </div>
                 ) : null}
 
+                {car.research?.verdict && (
+                    <div style={{
+                        fontSize: '0.78rem',
+                        color: 'var(--color-text-secondary)',
+                        marginTop: '-0.25rem',
+                        marginBottom: '0.75rem',
+                    }}>
+                        Reddit: {car.research.verdict}
+                    </div>
+                )}
+
                 <div className="car-card-footer">
                     <span className="car-card-source">
                         📍 {car.source}

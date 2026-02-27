@@ -17,7 +17,7 @@ export async function POST(request) {
         }
 
         // Buy-only search backed by the Craigslist scraping pipeline.
-        const buyListings = await searchCraigslistCars({ query, location, maxResults });
+        const { listings: buyListings, searchContext } = await searchCraigslistCars({ query, location, maxResults });
 
         const allListings = buyListings.map((listing) => ({
             ...listing,
@@ -29,6 +29,7 @@ export async function POST(request) {
             count: allListings.length,
             listings: allListings,
             query,
+            searchContext,
         });
     } catch (error) {
         console.error('Search API error:', error);
