@@ -79,8 +79,6 @@ export default function ResultsPage() {
             >
               <option value="overallScore">Overall Score</option>
               <option value="valueScore">Value Score</option>
-              <option value="buyScore">Buy Score</option>
-              <option value="rentScore">Rent Score</option>
               <option value="matchScore">Match Score</option>
               <option value="priceNumeric">Price (High to Low)</option>
             </select>
@@ -95,9 +93,9 @@ export default function ResultsPage() {
               onChange={(e) => setFilterRecommendation(e.target.value)}
             >
               <option value="all">All Recommendations</option>
-              <option value="buy">🟢 Buy</option>
-              <option value="rent">🟡 Rent</option>
-              <option value="consider">🔵 Consider</option>
+              <option value="buy">✨ Top Match</option>
+              <option value="rent">🔥 Great Value</option>
+              <option value="consider">⚡ Good Option</option>
             </select>
           </div>
 
