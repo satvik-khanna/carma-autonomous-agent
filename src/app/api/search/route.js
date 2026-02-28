@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request) {
     try {
         const body = await request.json();
-        const { query, location, maxResults = 10 } = body;
+        const { query, location, maxMileage, maxResults = 10 } = body;
 
         if (!query) {
             return NextResponse.json(
@@ -16,8 +16,17 @@ export async function POST(request) {
             );
         }
 
+        const normalizedMaxMileage = Number.isFinite(Number(maxMileage)) && Number(maxMileage) > 0
+            ? Number(maxMileage)
+            : null;
+
         // Buy-only search backed by the Craigslist scraping pipeline.
-        const { listings: buyListings, searchContext } = await searchCraigslistCars({ query, location, maxResults });
+        const { listings: buyListings, searchContext } = await searchCraigslistCars({
+            query,
+            location,
+            maxMileage: normalizedMaxMileage,
+            maxResults,
+        });
 
         const allListings = buyListings.map((listing) => ({
             ...listing,

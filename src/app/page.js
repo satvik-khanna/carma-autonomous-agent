@@ -21,6 +21,7 @@ export default function HomePage() {
                 body: JSON.stringify({
                     query: formData.query,
                     location: formData.location,
+                    maxMileage: Number(formData.maxMileage),
                     maxResults: 20,
                 }),
             });
@@ -53,6 +54,7 @@ export default function HomePage() {
                     cars: searchData.listings,
                     preferences: {
                         budget: formData.budget,
+                        maxMileage: formData.maxMileage,
                         useCase: formData.useCase,
                         duration: formData.duration,
                         location: formData.location,

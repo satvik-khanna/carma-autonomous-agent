@@ -22,7 +22,7 @@ const RELIABILITY_INTENT_PATTERNS = [
     /\bno issues\b/i,
 ];
 
-export async function searchCraigslistCars({ query, location, maxResults = 10 }) {
+export async function searchCraigslistCars({ query, location, maxMileage = null, maxResults = 10 }) {
     const searchContext = analyzeSearchIntent(query);
     const { dataFile, researchApplied } = await ensureStructuredData(searchContext.vehicleQuery, {
         includeResearch: searchContext.reliabilityIntent,
@@ -31,6 +31,7 @@ export async function searchCraigslistCars({ query, location, maxResults = 10 })
         dataFile,
         query: searchContext.vehicleQuery,
         location,
+        maxMileage,
         maxResults,
     });
 
@@ -38,12 +39,13 @@ export async function searchCraigslistCars({ query, location, maxResults = 10 })
         listings: prepared.bestListings.map(stripInternalSearchFields),
         searchContext: {
             ...searchContext,
+            maxMileage,
             researchApplied,
         },
     };
 }
 
-async function loadAndPrepareListings({ dataFile, query, location, maxResults }) {
+async function loadAndPrepareListings({ dataFile, query, location, maxMileage, maxResults }) {
     const rawListings = JSON.parse(await fs.readFile(dataFile, 'utf-8'));
 
     const normalizedListings = rawListings
@@ -57,11 +59,13 @@ async function loadAndPrepareListings({ dataFile, query, location, maxResults })
 
     const strictCandidates = qualityAnnotatedListings.filter(passesStrictListingQualityFilter);
     const relaxedCandidates = qualityAnnotatedListings.filter(passesBaselineListingQualityFilter);
-    const filteredListings = strictCandidates.length >= Math.min(maxResults, 5)
+    const qualityFilteredListings = strictCandidates.length >= Math.min(maxResults, 5)
         ? strictCandidates
         : (relaxedCandidates.length > 0
             ? relaxedCandidates
             : qualityAnnotatedListings.filter((listing) => listing.priceNumeric !== null));
+
+    const filteredListings = applyMileageFilter(qualityFilteredListings, maxMileage);
 
     const bestListings = rankSearchResults(filteredListings, query, location)
         .slice(0, maxResults);
@@ -71,6 +75,15 @@ async function loadAndPrepareListings({ dataFile, query, location, maxResults })
         filteredCount: filteredListings.length,
         rawCount: rawListings.length,
     };
+}
+
+function applyMileageFilter(listings, maxMileage) {
+    if (!Number.isFinite(Number(maxMileage)) || Number(maxMileage) <= 0) {
+        return listings;
+    }
+
+    const limit = Number(maxMileage);
+    return listings.filter((listing) => Number.isFinite(Number(listing.mileage)) && Number(listing.mileage) <= limit);
 }
 
 async function ensureStructuredData(query, { includeResearch = false } = {}) {
