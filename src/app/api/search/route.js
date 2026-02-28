@@ -7,7 +7,8 @@ import fs from 'fs';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const activePipelines = new Set();
+// 'running' | 'done' | 'failed'
+const pipelineStatus = new Map();
 
 let pythonAvailable = null;
 
@@ -28,13 +29,14 @@ function schedulePipeline(query) {
             startBackgroundPipeline(query);
         } catch (err) {
             console.error(`Pipeline schedule error for "${query}":`, err.message);
+            pipelineStatus.set(queryToSlug(query), 'failed');
         }
     }, 100);
 }
 
 function startBackgroundPipeline(query) {
     const slug = queryToSlug(query);
-    if (activePipelines.has(slug)) return;
+    if (pipelineStatus.get(slug) === 'running') return;
 
     if (!checkPython()) {
         console.warn('python3 not available — pipeline cannot run on this host');
@@ -47,25 +49,35 @@ function startBackgroundPipeline(query) {
         return;
     }
 
-    activePipelines.add(slug);
+    pipelineStatus.set(slug, 'running');
+
+    const logFile = path.join(process.cwd(), 'backend', 'data', `pipeline_${slug}.log`);
+    const logFd = fs.openSync(logFile, 'w');
 
     const child = spawn('python3', [pipelineScript, query], {
         cwd: path.join(process.cwd(), 'backend', 'scraper', 'pipeline'),
         env: { ...process.env, CAR_QUERY: query },
-        stdio: 'ignore',
+        stdio: ['ignore', logFd, logFd],
         detached: true,
     });
 
     child.on('error', (err) => {
         console.error(`Pipeline spawn error for "${query}":`, err.message);
-        activePipelines.delete(slug);
+        pipelineStatus.set(slug, 'failed');
+        try { fs.closeSync(logFd); } catch {}
     });
 
     child.unref();
 
     child.on('close', (code) => {
-        activePipelines.delete(slug);
-        console.log(`Pipeline finished for "${query}" (exit code: ${code})`);
+        try { fs.closeSync(logFd); } catch {}
+        if (code === 0) {
+            pipelineStatus.set(slug, 'done');
+            console.log(`Pipeline finished for "${query}"`);
+        } else {
+            pipelineStatus.set(slug, 'failed');
+            console.error(`Pipeline FAILED for "${query}" (exit code: ${code}) — see ${logFile}`);
+        }
     });
 
     console.log(`Pipeline started in background for "${query}" (pid: ${child.pid})`);
@@ -120,23 +132,38 @@ export async function POST(request) {
 
         // 2) No cached data — tell frontend to poll, then kick off pipeline after response
         const slug = queryToSlug(query);
-        const alreadyRunning = activePipelines.has(slug);
+        const status = pipelineStatus.get(slug);
         const hasPython = checkPython();
 
-        if (!alreadyRunning && hasPython) {
+        if (!hasPython) {
+            return NextResponse.json({
+                success: false,
+                status: 'pipeline_unavailable',
+                message: `No cached data for "${query}". Pipeline unavailable on this host — run it locally and data will sync via AWS.`,
+                query,
+            }, { status: 202 });
+        }
+
+        if (status === 'failed') {
+            pipelineStatus.delete(slug);
+            return NextResponse.json({
+                success: false,
+                status: 'pipeline_failed',
+                message: `Pipeline failed for "${query}". Check logs and try again.`,
+                query,
+            }, { status: 500 });
+        }
+
+        if (status !== 'running') {
             schedulePipeline(query);
         }
 
-        const message = !hasPython
-            ? `No cached data for "${query}". Pipeline unavailable on this host — run it locally and data will sync via AWS.`
-            : alreadyRunning
-                ? `Still scraping listings for "${query}"... check back in a moment.`
-                : `Scraping Craigslist for "${query}" — this takes 2-3 minutes. Results will appear automatically.`;
-
         return NextResponse.json({
             success: false,
-            status: hasPython ? 'pipeline_running' : 'pipeline_unavailable',
-            message,
+            status: 'pipeline_running',
+            message: status === 'running'
+                ? `Still scraping listings for "${query}"... check back in a moment.`
+                : `Scraping Craigslist for "${query}" — this takes 1-2 minutes. Results will appear automatically.`,
             query,
             pollUrl: `/api/craigslist?q=${encodeURIComponent(query)}`,
         }, { status: 202 });

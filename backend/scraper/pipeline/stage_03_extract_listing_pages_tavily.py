@@ -47,9 +47,8 @@ OUTPUT_INDEX_CSV  = OUT_DIR / f"listing_pages_{SLUG}_index.csv"
 OUTPUT_JSONL      = OUT_DIR / f"listing_pages_{SLUG}.jsonl"
 
 # ── Scraper settings ──
-# 3 workers + 1s delay = ~3 req/sec, well under CL's limit
-MAX_WORKERS           = 1
-DELAY_BETWEEN_REQUESTS = 1.0   # seconds per worker between requests
+# 4 workers + 0.5-1.5s jitter = ~4-6 req/sec, safe for CL
+MAX_WORKERS           = 4
 REQUEST_TIMEOUT       = (5, 15)  # (connect timeout, read timeout)
 MAX_RETRIES           = 3
 RETRY_BACKOFF         = 3       # seconds, doubles each retry
@@ -201,8 +200,7 @@ def fetch_and_parse(url: str) -> Dict[str, Any]:
     session = requests.Session()
     session.headers.update(HEADERS)
 
-    # Polite delay before each request
-    time.sleep(random.uniform(1.5, 4.0))
+    time.sleep(random.uniform(0.4, 1.2))
 
     html, error = fetch_url(url, session)
     if error or not html:
@@ -292,9 +290,9 @@ def main() -> int:
 
     urls = read_urls(INPUT_CSV)
     total = len(urls)
-    est_minutes = round((total / MAX_WORKERS) * DELAY_BETWEEN_REQUESTS / 60, 1)
+    est_seconds = round((total / MAX_WORKERS) * 1.3)
     print(f"📋 {total} listing URLs to scrape for \"{CAR_QUERY}\"")
-    print(f"   {MAX_WORKERS} workers × {DELAY_BETWEEN_REQUESTS}s delay  (~{est_minutes} min estimated)")
+    print(f"   {MAX_WORKERS} workers, ~0.8s avg delay  (~{est_seconds}s estimated)")
 
     all_results: List[Dict[str, Any]] = []
     completed = 0

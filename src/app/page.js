@@ -11,7 +11,7 @@ export default function HomePage() {
     const [loadingMsg, setLoadingMsg] = useState('');
 
     const pollForResults = async (query, formData, attempt = 0) => {
-        const maxAttempts = 40;
+        const maxAttempts = 18;
         const pollInterval = 10000;
 
         if (attempt >= maxAttempts) {
@@ -28,6 +28,22 @@ export default function HomePage() {
         await new Promise((r) => setTimeout(r, pollInterval));
 
         try {
+            // Check if pipeline failed by re-hitting search endpoint
+            if (attempt > 0 && attempt % 3 === 0) {
+                const statusRes = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query }),
+                });
+                const statusData = await statusRes.json();
+                if (statusData.status === 'pipeline_failed' || statusData.status === 'pipeline_unavailable') {
+                    setLoading(false);
+                    setLoadingMsg('');
+                    alert(statusData.message || 'Pipeline failed. Try again.');
+                    return;
+                }
+            }
+
             const pollRes = await fetch(`/api/craigslist?q=${encodeURIComponent(query)}`);
             const pollData = await pollRes.json();
 
@@ -105,11 +121,10 @@ export default function HomePage() {
                 return;
             }
 
-            // Pipeline can't run on this host (no Python on Render)
-            if (searchData.status === 'pipeline_unavailable') {
+            if (searchData.status === 'pipeline_unavailable' || searchData.status === 'pipeline_failed') {
                 setLoading(false);
                 setLoadingMsg('');
-                alert(searchData.message || 'No data available for this car yet. Run the pipeline locally first.');
+                alert(searchData.message || 'Pipeline could not run. Try again or run it locally.');
                 return;
             }
 

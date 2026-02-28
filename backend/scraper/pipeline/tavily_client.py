@@ -13,15 +13,19 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+
+import requests as _requests
+
 try:
     from dotenv import load_dotenv
-except ImportError:  # python-dotenv is optional when env vars are already present
+except ImportError:
     def load_dotenv(*_args, **_kwargs):
         return False
 
-load_dotenv()
+# Load .env.local from project root (3 levels up from pipeline/)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+load_dotenv(_PROJECT_ROOT / ".env.local")
+load_dotenv(_PROJECT_ROOT / ".env")
 
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 if not TAVILY_API_KEY:
@@ -31,16 +35,18 @@ TAVILY_BASE_URL = os.getenv("TAVILY_BASE_URL", "https://api.tavily.com").rstrip(
 
 
 class TavilyHTTPClient:
-    """Minimal Tavily client using the documented HTTP API.
-
-    This keeps the scraper working even when the optional Tavily Python SDK
-    is not installed in the local environment.
-    """
+    """Minimal Tavily client using requests (handles SSL certs via certifi)."""
 
     def __init__(self, api_key: str, base_url: str, project_id: str | None = None):
         self.api_key = api_key
         self.base_url = base_url
-        self.project_id = project_id
+        self.session = _requests.Session()
+        self.session.headers.update({
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        })
+        if project_id:
+            self.session.headers["X-Project-ID"] = project_id
 
     def extract(self, urls, **kwargs):
         payload = {"urls": urls}
@@ -48,41 +54,23 @@ class TavilyHTTPClient:
         return self._post("/extract", payload)
 
     def _post(self, path: str, payload: dict) -> dict:
-        data = json.dumps(payload).encode("utf-8")
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
-        }
-        if self.project_id:
-            headers["X-Project-ID"] = self.project_id
-
-        request = Request(
-            f"{self.base_url}{path}",
-            data=data,
-            headers=headers,
-            method="POST",
-        )
-
         api_timeout = payload.get("timeout")
-        request_timeout = None
+        request_timeout = 30.0
         if isinstance(api_timeout, (int, float)) and api_timeout > 0:
             request_timeout = max(float(api_timeout) + 10.0, 30.0)
 
-        try:
-            with urlopen(request, timeout=request_timeout) as response:
-                raw = response.read().decode("utf-8")
-        except HTTPError as exc:
-            error_body = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"Tavily extract request failed with HTTP {exc.code}: {error_body or exc.reason}"
-            ) from exc
-        except URLError as exc:
-            raise RuntimeError(f"Tavily extract request failed: {exc.reason}") from exc
+        resp = self.session.post(
+            f"{self.base_url}{path}",
+            json=payload,
+            timeout=request_timeout,
+        )
 
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError("Tavily extract returned a non-JSON response.") from exc
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Tavily request failed with HTTP {resp.status_code}: {resp.text[:500]}"
+            )
+
+        return resp.json()
 
 
 client = TavilyHTTPClient(
