@@ -22,7 +22,7 @@ PROJECT_ROOT = PIPELINE_DIR.parent.parent.parent
 STAGES = [
     (1, "stage_01_harvest_search.py",              "Harvesting search pages (Tavily Search)"),
     (2, "stage_02_parse_links.py",                 "Parsing links from extracts"),
-    (3, "stage_03_extract_listing_pages_tavily.py", "Scraping individual listings (BeautifulSoup)"),
+    (3, "stage_03_extract_listing_pages.py", "Scraping individual listings (BeautifulSoup)"),
     (4, "stage_04_parse_structured.py",            "Parsing structured fields"),
     (5, "stage_05_research.py",                    "Researching reliability & market value (Tavily Search)"),
     (6, "stage_06_expand_search.py",               "Expansion Agent — finds alternatives if results < 20 (OpenAI)"),

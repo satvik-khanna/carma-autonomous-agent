@@ -1,0 +1,352 @@
+🔍 Query: "BMW m5"
+🌐 12 search URLs across 5 sites
+   • sfbay (<$9,000)
+   • sfbay ($9,000–$15,000)
+   • sfbay ($15,000–$25,000)
+   • sfbay ($25,000+)
+   • sacramento (<$10,000)
+   • sacramento ($10,000–$15,000)
+   • sacramento ($15,000–$20,000)
+   • sacramento ($20,000+)
+   • stockton (<$15,000)
+   • stockton ($15,000+)
+   • modesto (all prices)
+   • monterey (all prices)
+   Tavily calls needed: 1
+   📡 Extract call 1/1 (12 URLs)
+✅ Wrote: /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/01_raw_extracts/extract_full_bmw_m5.json
+   Search pages returned: 12/12
+   Unique listing links discovered: 2156
+🔍 Filtering for: "BMW m5"
+✅ Input: /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/01_raw_extracts/extract_full_bmw_m5.json
+   All links:      2156 → /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/02_links/all_links_bmw_m5.csv
+   Matching query:   10 → /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/02_links/filtered_links_bmw_m5.csv
+📋 10 listing URLs to extract for "BMW m5"
+📄 Extracting batch 1/1 (10 urls)
+✅ Wrote listing pages:  /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/03_listing_pages/listing_pages_bmw_m5.json
+   Index CSV:            /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/03_listing_pages/listing_pages_bmw_m5_index.csv
+   Normalized JSONL:     /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/03_listing_pages/listing_pages_bmw_m5.jsonl
+   Total pages stored:   10
+
+✅ Parsed 10 listings for "BMW m5" → /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/04_structured
+
+   Field                  Filled   Pct
+   ────────────────────── ────── ─────
+   year                     10/10   100% ████████████████████
+   make                      4/10    40% ████████░░░░░░░░░░░░
+   model                     4/10    40% ████████░░░░░░░░░░░░
+   trim                      0/10     0% ░░░░░░░░░░░░░░░░░░░░
+   price_usd                 9/10    90% ██████████████████░░
+   mileage                  10/10   100% ████████████████████
+   vin                       8/10    80% ████████████████░░░░
+   condition                 6/10    60% ████████████░░░░░░░░
+   used_new                  6/10    60% ████████████░░░░░░░░
+   transmission             10/10   100% ████████████████████
+   fuel                     10/10   100% ████████████████████
+   drive                     9/10    90% ██████████████████░░
+   body_type                 9/10    90% ██████████████████░░
+   paint_color               5/10    50% ██████████░░░░░░░░░░
+   cylinders                 9/10    90% ██████████████████░░
+   title_status             10/10   100% ████████████████████
+   size                      0/10     0% ░░░░░░░░░░░░░░░░░░░░
+   location                 10/10   100% ████████████████████
+   latitude                  7/10    70% ██████████████░░░░░░
+   longitude                 7/10    70% ██████████████░░░░░░
+   seller_type              10/10   100% ████████████████████
+   posted_at                 0/10     0% ░░░░░░░░░░░░░░░░░░░░
+   updated_at                0/10     0% ░░░░░░░░░░░░░░░░░░░░
+   phone                     6/10    60% ████████████░░░░░░░░
+   images                   10/10   100% ████████████████████
+🔬 Reddit Research Agent — researching 10 listings for "BMW m5"
+   (10 total listings, researching top 10)
+   Source: reddit.com only (real owner opinions)
+
+  🚗 [1/10] 2025 Bmw M5 — $144,997 — 5,213 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2025 Bmw M5.
+
+  🚗 [2/10] 2021 Bmw M5 — $87,000 — 28,000 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2021 Bmw M5.
+
+  🚗 [3/10] 2014 Bmw M5 — $39,995 — 42,658 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2014 Bmw M5.
+
+  🚗 [4/10] 2003 None None — $35,500 — 146,897 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     � high_mileage: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2003 None None.
+
+  🚗 [5/10] 2018 None None — $24,498 — 108,137 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     � high_mileage: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2018 None None.
+
+  🚗 [6/10] 2018 None None — $24,498 — 108,137 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     � high_mileage: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2018 None None.
+
+  🚗 [7/10] 2006 Bmw M5 — $22,000 — 151,000 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     � high_mileage: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2006 Bmw M5.
+
+  🚗 [8/10] 2018 None None — $19,498 — 128,681 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     � high_mileage: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2018 None None.
+
+  🚗 [9/10] 2018 None None — $19,498 — 128,681 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     � high_mileage: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2018 None None.
+
+  🚗 [10/10] 2020 None None — no price — 54,864 mi
+     � should_i_buy: searching Reddit...
+        → 0 results from reddit
+     � mechanic_advice: searching Reddit...
+        → 0 results from reddit
+     � ownership_experience: searching Reddit...
+        → 0 results from reddit
+     � costs_and_value: searching Reddit...
+        → 0 results from reddit
+     ✅ Score: 5.2/10  █████░░░░░
+     📝 Reddit is mixed on the 2020 None None.
+
+============================================================
+  ✅ Reddit Research Complete — "BMW m5"
+============================================================
+   Listings researched:  10/10
+   Reddit searches used: 46
+   Full report:          /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/05_research/research_bmw_m5.json
+   Enriched listings:    /Users/jacob/Side Projects/carma-autonomous-agent/backend/data/craigslist/04_structured/listings_enriched_bmw_m5.json
+
+   Car                                       Score  Verdict
+   ──────────────────────────────────────── ──────  ────────────────────────────────────────
+   2025 BMW M5 Touring hybrid for sale -      5.2/10  █████░░░░░  Reddit is mixed on the 2025 Bmw M5.
+   2021 bmw m5 for sale by owner - South      5.2/10  █████░░░░░  Reddit is mixed on the 2021 Bmw M5.
+   2014 bmw m5 for sale by owner - San Jo     5.2/10  █████░░░░░  Reddit is mixed on the 2014 Bmw M5.
+   Recent Maintenance                         5.2/10  █████░░░░░  Reddit is mixed on the 2003 None None.
+   🚙 Gilroy Car Club LLC​                     5.2/10  █████░░░░░  Reddit is mixed on the 2018 None None.
+   🚙 Gilroy Car Club LLC​                     5.2/10  █████░░░░░  Reddit is mixed on the 2018 None None.
+   2006 BMW M5 for sale by owner - San Fr     5.2/10  █████░░░░░  Reddit is mixed on the 2006 Bmw M5.
+   🚙 Gilroy Car Club LLC​                     5.2/10  █████░░░░░  Reddit is mixed on the 2018 None None.
+   🚙 Gilroy Car Club LLC​                     5.2/10  █████░░░░░  Reddit is mixed on the 2018 None None.
+   See this vehicle on our website            5.2/10  █████░░░░░  Reddit is mixed on the 2020 None None.
+
+============================================================
+  Carma AWS Upload
+  Region: us-east-2
+  S3 Bucket: carma-pipeline-data
+  DynamoDB Table: carma-listings
+  Filter: bmw_m5
+============================================================
+
+── S3 Upload ──────────────────────────────────────────
+  S3 ↑ craigslist/01_raw_extracts/extract_full_bmw_m5.json
+Traceback (most recent call last):
+  File "/Users/jacob/Side Projects/carma-autonomous-agent/backend/aws_upload.py", line 253, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/Users/jacob/Side Projects/carma-autonomous-agent/backend/aws_upload.py", line 239, in main
+    total += upload_to_s3(s3_client, args.slug)
+             ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jacob/Side Projects/carma-autonomous-agent/backend/aws_upload.py", line 110, in upload_to_s3
+    s3_client.upload_file(str(fpath), S3_BUCKET, s3_key)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/boto3/s3/inject.py", line 175, in upload_file
+    return transfer.upload_file(
+           ~~~~~~~~~~~~~~~~~~~~^
+        filename=Filename,
+        ^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        callback=Callback,
+        ^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/boto3/s3/transfer.py", line 452, in upload_file
+    future.result()
+    ~~~~~~~~~~~~~^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/s3transfer/futures.py", line 111, in result
+    return self._coordinator.result()
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/s3transfer/futures.py", line 287, in result
+    raise self._exception
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/s3transfer/tasks.py", line 142, in __call__
+    return self._execute_main(kwargs)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/s3transfer/tasks.py", line 165, in _execute_main
+    return_value = self._main(**kwargs)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/s3transfer/upload.py", line 796, in _main
+    client.put_object(Bucket=bucket, Key=key, Body=body, **extra_args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/client.py", line 602, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/client.py", line 1060, in _make_api_call
+    http, parsed_response = self._make_request(
+                            ~~~~~~~~~~~~~~~~~~^
+        operation_model, request_dict, request_context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/client.py", line 1084, in _make_request
+    return self._endpoint.make_request(operation_model, request_dict)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/endpoint.py", line 119, in make_request
+    return self._send_request(request_dict, operation_model)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/endpoint.py", line 196, in _send_request
+    request = self.create_request(request_dict, operation_model)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/endpoint.py", line 132, in create_request
+    self._event_emitter.emit(
+    ~~~~~~~~~~~~~~~~~~~~~~~~^
+        event_name,
+        ^^^^^^^^^^^
+        request=request,
+        ^^^^^^^^^^^^^^^^
+        operation_name=operation_model.name,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/hooks.py", line 412, in emit
+    return self._emitter.emit(aliased_event_name, **kwargs)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/hooks.py", line 256, in emit
+    return self._emit(event_name, kwargs)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/hooks.py", line 239, in _emit
+    response = handler(**kwargs)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/signers.py", line 108, in handler
+    return self.sign(operation_name, request)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/signers.py", line 200, in sign
+    auth.add_auth(request)
+    ~~~~~~~~~~~~~^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/botocore/auth.py", line 422, in add_auth
+    raise NoCredentialsError()
+botocore.exceptions.NoCredentialsError: Unable to locate credentials
+
+  🔍 Query: "BMW m5"
+  📋 Stages: 1, 2, 3, 4, 5
+  ☁️  AWS upload: always
+
+============================================================
+  Stage 1: Harvesting search pages (Tavily Search)
+============================================================
+
+
+============================================================
+  Stage 2: Parsing links from extracts
+============================================================
+
+
+============================================================
+  Stage 3: Scraping individual listings (BeautifulSoup)
+============================================================
+
+
+============================================================
+  Stage 4: Parsing structured fields
+============================================================
+
+
+============================================================
+  Stage 5: Researching reliability & market value (Tavily Search)
+============================================================
+
+
+============================================================
+  ✅ Pipeline complete in 30.3s
+============================================================
+
+============================================================
+  ☁️  Uploading to AWS (slug: bmw_m5)
+============================================================
+
+
+  ❌ AWS upload failed (exit 1)
