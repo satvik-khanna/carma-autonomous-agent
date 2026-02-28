@@ -105,6 +105,14 @@ export default function HomePage() {
                 return;
             }
 
+            // Pipeline can't run on this host (no Python on Render)
+            if (searchData.status === 'pipeline_unavailable') {
+                setLoading(false);
+                setLoadingMsg('');
+                alert(searchData.message || 'No data available for this car yet. Run the pipeline locally first.');
+                return;
+            }
+
             if (!searchRes.ok || !searchData.success) {
                 throw new Error(searchData.error || 'Search failed.');
             }

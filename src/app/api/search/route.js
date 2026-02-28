@@ -1,19 +1,54 @@
 import { searchListings, queryToSlug } from '@/lib/aws';
 import { NextResponse } from 'next/server';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const activePipelines = new Set();
 
+let pythonAvailable = null;
+
+function checkPython() {
+    if (pythonAvailable !== null) return pythonAvailable;
+    try {
+        execSync('python3 --version', { stdio: 'ignore', timeout: 5000 });
+        pythonAvailable = true;
+    } catch {
+        pythonAvailable = false;
+    }
+    return pythonAvailable;
+}
+
+function schedulePipeline(query) {
+    setTimeout(() => {
+        try {
+            startBackgroundPipeline(query);
+        } catch (err) {
+            console.error(`Pipeline schedule error for "${query}":`, err.message);
+        }
+    }, 100);
+}
+
 function startBackgroundPipeline(query) {
     const slug = queryToSlug(query);
     if (activePipelines.has(slug)) return;
-    activePipelines.add(slug);
+
+    if (!checkPython()) {
+        console.warn('python3 not available — pipeline cannot run on this host');
+        return;
+    }
 
     const pipelineScript = path.join(process.cwd(), 'backend', 'scraper', 'pipeline', 'run_pipeline.py');
+    if (!fs.existsSync(pipelineScript)) {
+        console.warn(`Pipeline script not found: ${pipelineScript}`);
+        return;
+    }
+
+    activePipelines.add(slug);
+
     const child = spawn('python3', [pipelineScript, query], {
         cwd: path.join(process.cwd(), 'backend', 'scraper', 'pipeline'),
         env: { ...process.env, CAR_QUERY: query },
@@ -21,10 +56,16 @@ function startBackgroundPipeline(query) {
         detached: true,
     });
 
-    child.unref();
-    child.on('close', () => {
+    child.on('error', (err) => {
+        console.error(`Pipeline spawn error for "${query}":`, err.message);
         activePipelines.delete(slug);
-        console.log(`Pipeline finished for "${query}"`);
+    });
+
+    child.unref();
+
+    child.on('close', (code) => {
+        activePipelines.delete(slug);
+        console.log(`Pipeline finished for "${query}" (exit code: ${code})`);
     });
 
     console.log(`Pipeline started in background for "${query}" (pid: ${child.pid})`);
@@ -77,20 +118,25 @@ export async function POST(request) {
             console.warn('DynamoDB lookup skipped:', err.message);
         }
 
-        // 2) No cached data — start pipeline in background and tell frontend to poll
+        // 2) No cached data — tell frontend to poll, then kick off pipeline after response
         const slug = queryToSlug(query);
         const alreadyRunning = activePipelines.has(slug);
+        const hasPython = checkPython();
 
-        if (!alreadyRunning) {
-            startBackgroundPipeline(query);
+        if (!alreadyRunning && hasPython) {
+            schedulePipeline(query);
         }
+
+        const message = !hasPython
+            ? `No cached data for "${query}". Pipeline unavailable on this host — run it locally and data will sync via AWS.`
+            : alreadyRunning
+                ? `Still scraping listings for "${query}"... check back in a moment.`
+                : `Scraping Craigslist for "${query}" — this takes 2-3 minutes. Results will appear automatically.`;
 
         return NextResponse.json({
             success: false,
-            status: 'pipeline_running',
-            message: alreadyRunning
-                ? `Still scraping listings for "${query}"... check back in a moment.`
-                : `Scraping Craigslist for "${query}" — this takes 2-3 minutes. Results will appear automatically.`,
+            status: hasPython ? 'pipeline_running' : 'pipeline_unavailable',
+            message,
             query,
             pollUrl: `/api/craigslist?q=${encodeURIComponent(query)}`,
         }, { status: 202 });
