@@ -2,3 +2,5 @@ python-dotenv
 tavily-python
 requests
 beautifulsoup4
+yutori
+boto3

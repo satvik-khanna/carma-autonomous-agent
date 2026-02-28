@@ -1,36 +1,34 @@
 #!/usr/bin/env python3
 """
-yutori_scout.py — Yutori Scouting API integration
+yutori_scout.py — Yutori Scouting API integration + AWS sync
 
-Completely standalone — does NOT touch stages 1-6 or any pipeline files.
-Call this after a search to set up ongoing monitoring for new listings.
+Monitors Craigslist for new listings via Yutori Scouts.
+When new listings are found, they're automatically pushed to DynamoDB.
 
 Usage:
-    from yutori_scout import create_car_scout, get_scout_updates, delete_scout
+    from yutori_scout import create_car_scout, sync_scout_to_aws
 
     # Create a scout after the pipeline runs
-    scout_id = create_car_scout(
-        query="toyota camry",
-        location="Bay Area CA",
-        max_price=15000,
-        user_email="user@example.com"
-    )
+    scout = create_car_scout(query="toyota camry", location="Bay Area CA", max_price=15000)
 
-    # Later: check for new listings
-    updates = get_scout_updates(scout_id)
-
-    # When user is done
-    delete_scout(scout_id)
+    # Sync latest scout findings → DynamoDB
+    new_count = sync_scout_to_aws(scout["id"], slug="toyota_camry")
 """
 
 from __future__ import annotations
 
 import os
+import re
+import time
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
+import boto3
 from dotenv import load_dotenv
 from yutori import YutoriClient
 
+load_dotenv(Path(__file__).resolve().parent.parent.parent.parent / ".env.local")
 load_dotenv()
 
 client = YutoriClient(api_key=os.getenv("YUTORI_API_KEY"))
@@ -146,3 +144,103 @@ def delete_scout(scout_id: str) -> None:
 def list_active_scouts() -> List[Dict[str, Any]]:
     result = client.scouts.list(status="active")
     return result.get("scouts", []) if isinstance(result, dict) else result
+
+
+# ── AWS Sync ─────────────────────────────────────────────────────────────────
+
+def _get_dynamo_table():
+    session = boto3.Session(
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        region_name=os.getenv("AWS_REGION", "us-east-2"),
+    )
+    dynamo = session.resource("dynamodb")
+    return dynamo.Table(os.getenv("DYNAMODB_TABLE_NAME", "carma-listings"))
+
+
+def _float_to_decimal(obj):
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    if isinstance(obj, dict):
+        return {k: _float_to_decimal(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_float_to_decimal(i) for i in obj]
+    return obj
+
+
+def _slugify(query: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", query.lower().strip()).strip("_")
+
+
+def sync_scout_to_aws(
+    scout_id: str,
+    slug: str,
+    limit: int = 50,
+) -> int:
+    """
+    Fetch latest scout updates and push new listings to DynamoDB.
+    Returns the number of new listings synced.
+    """
+    table = _get_dynamo_table()
+    updates = get_scout_updates(scout_id, limit=limit)
+    synced = 0
+
+    for update in updates:
+        listings = update if isinstance(update, list) else update.get("results", [])
+
+        with table.batch_writer() as batch:
+            for listing in listings:
+                if not isinstance(listing, dict):
+                    continue
+
+                listing_url = listing.get("url", "")
+                if not listing_url:
+                    continue
+
+                price_str = listing.get("price", "0")
+                price_num = int(re.sub(r"[^\d]", "", price_str)) if price_str else None
+
+                item = _float_to_decimal({
+                    "pk": slug,
+                    "sk": f"scout-{listing_url}",
+                    "data_type": "scout",
+                    "title": listing.get("title", ""),
+                    "price_usd": price_num,
+                    "mileage": listing.get("mileage"),
+                    "year": listing.get("year"),
+                    "url": listing_url,
+                    "location": listing.get("location"),
+                    "posted_at": listing.get("posted"),
+                    "source": "yutori_scout",
+                    "scout_id": scout_id,
+                    "uploaded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                })
+
+                # Remove None values (DynamoDB doesn't accept them)
+                item = {k: v for k, v in item.items() if v is not None}
+
+                try:
+                    batch.put_item(Item=item)
+                    synced += 1
+                except Exception as e:
+                    print(f"  ✗ Failed to sync {listing_url}: {e}")
+
+    print(f"  ✅ Synced {synced} scout listings to DynamoDB (slug: {slug})")
+    return synced
+
+
+def create_and_sync_scout(
+    query: str,
+    location: Optional[str] = None,
+    max_price: Optional[int] = None,
+    min_year: Optional[int] = None,
+    max_mileage: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Create a scout and immediately sync any initial results to AWS.
+    Returns the scout object.
+    """
+    scout = create_car_scout(query, location, max_price, min_year, max_mileage)
+    slug = _slugify(query)
+    sync_scout_to_aws(scout["id"], slug)
+    return scout
