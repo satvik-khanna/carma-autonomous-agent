@@ -20,12 +20,17 @@ function loadListingsFromDisk(queryTerms) {
 
   try {
     const files = fs.readdirSync(DATA_DIR);
+    const slug = queryTerms.join("_");
+
+    // Only load files whose name contains ALL query terms
+    const fileMatchesQuery = (f) =>
+      queryTerms.every((term) => f.toLowerCase().includes(term));
 
     const enrichedFiles = files.filter(
-      (f) => f.startsWith("listings_enriched_") && f.endsWith(".json"),
+      (f) => f.startsWith("listings_enriched_") && f.endsWith(".json") && fileMatchesQuery(f),
     );
     const structuredFiles = files.filter(
-      (f) => f.startsWith("listings_structured_") && f.endsWith(".json"),
+      (f) => f.startsWith("listings_structured_") && f.endsWith(".json") && fileMatchesQuery(f),
     );
 
     for (const file of enrichedFiles) {
@@ -191,7 +196,7 @@ export async function GET(request) {
         .join(" ")
         .toLowerCase();
 
-      return terms.some((term) => searchable.includes(term));
+      return terms.every((term) => searchable.includes(term));
     });
 
     const results = matches
