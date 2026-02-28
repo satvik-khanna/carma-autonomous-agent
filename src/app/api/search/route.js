@@ -4,12 +4,16 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const IS_CLOUD = Boolean(process.env.RENDER || process.env.VERCEL || process.env.NODE_ENV === 'production');
+
 let searchCraigslistCars = null;
-try {
-    const mod = await import('@/lib/craigslistPipeline');
-    searchCraigslistCars = mod.searchCraigslistCars;
-} catch {
-    // craigslistPipeline not available (e.g. on Render — no local files)
+if (!IS_CLOUD) {
+    try {
+        const mod = await import('@/lib/craigslistPipeline');
+        searchCraigslistCars = mod.searchCraigslistCars;
+    } catch {
+        // craigslistPipeline not available
+    }
 }
 
 export async function POST(request) {
@@ -59,7 +63,7 @@ export async function POST(request) {
             console.warn('DynamoDB search unavailable:', err.message);
         }
 
-        // Fallback to local pipeline (only works in local dev)
+        // Fallback to local pipeline (local dev only — never on Render)
         if (searchCraigslistCars) {
             const { listings: buyListings, searchContext } = await searchCraigslistCars({
                 query,
@@ -83,10 +87,16 @@ export async function POST(request) {
             });
         }
 
-        return NextResponse.json(
-            { error: 'No data available. Run the pipeline first or check AWS connection.' },
-            { status: 404 }
-        );
+        // No data in DynamoDB and no local pipeline available
+        const availableCars = [
+            'toyota camry', '2014 toyota camry', 'honda accord',
+            'bmw 330i', 'infiniti q50', 'lexus is350', 'toyota supra',
+        ];
+        return NextResponse.json({
+            success: false,
+            error: `No listings found for "${query}". Available searches: ${availableCars.join(', ')}. Run the pipeline locally to add more cars.`,
+            availableSearches: availableCars,
+        }, { status: 404 });
     } catch (error) {
         console.error('Search API error:', error);
         return NextResponse.json(
