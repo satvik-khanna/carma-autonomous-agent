@@ -10,6 +10,77 @@ export default function HomePage() {
     const [loading, setLoading] = useState(false);
     const [loadingMsg, setLoadingMsg] = useState('');
 
+    const pollForResults = async (query, formData, attempt = 0) => {
+        const maxAttempts = 40;
+        const pollInterval = 10000;
+
+        if (attempt >= maxAttempts) {
+            setLoading(false);
+            setLoadingMsg('');
+            alert('Search timed out. The pipeline may still be running — try again in a minute.');
+            return;
+        }
+
+        const dots = '.'.repeat((attempt % 3) + 1);
+        const elapsed = Math.round((attempt * pollInterval) / 1000);
+        setLoadingMsg(`Scraping Craigslist for "${query}"${dots} (${elapsed}s)`);
+
+        await new Promise((r) => setTimeout(r, pollInterval));
+
+        try {
+            const pollRes = await fetch(`/api/craigslist?q=${encodeURIComponent(query)}`);
+            const pollData = await pollRes.json();
+
+            if (pollData.success && pollData.listings?.length > 0) {
+                await rankAndNavigate(pollData.listings, formData, pollData);
+                return;
+            }
+        } catch {
+            // keep polling
+        }
+
+        return pollForResults(query, formData, attempt + 1);
+    };
+
+    const rankAndNavigate = async (listings, formData, searchData) => {
+        setLoadingMsg(`Ranking ${listings.length} listings...`);
+
+        const rankRes = await fetch('/api/rank', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cars: listings,
+                preferences: {
+                    budget: formData.budget,
+                    maxMileage: formData.maxMileage,
+                    useCase: formData.useCase,
+                    duration: formData.duration,
+                    location: formData.location,
+                    reliabilityIntent: Boolean(searchData.searchContext?.reliabilityIntent),
+                },
+            }),
+        });
+
+        const rankData = await rankRes.json();
+        const rankedListings = sortCarsByScoreDesc(rankData.rankings || listings);
+
+        sessionStorage.setItem(
+            'carma-results',
+            JSON.stringify({
+                rankings: rankedListings,
+                query: formData.query,
+                preferences: formData,
+                source: searchData.source || 'pipeline',
+                searchContext: searchData.searchContext || null,
+                timestamp: new Date().toISOString(),
+            })
+        );
+
+        setLoading(false);
+        setLoadingMsg('');
+        router.push('/results');
+    };
+
     const handleSearch = async (formData) => {
         setLoading(true);
         setLoadingMsg('Searching Craigslist listings...');
@@ -28,61 +99,25 @@ export default function HomePage() {
 
             const searchData = await searchRes.json();
 
-            if (!searchRes.ok || !searchData.success) {
-                throw new Error(searchData.error || 'Craigslist pipeline search failed.');
-            }
-
-            if (!searchData.listings || searchData.listings.length === 0) {
-                alert('No Craigslist listings found. Try a different search.');
+            // Pipeline started in background — poll for results
+            if (searchData.status === 'pipeline_running') {
+                pollForResults(formData.query, formData);
                 return;
             }
 
-            if (searchData.searchContext?.reliabilityIntent) {
-                setLoadingMsg(
-                    searchData.searchContext.researchApplied
-                        ? `Applying Reddit reliability research to ${searchData.listings.length} listings...`
-                        : `Reliability intent detected. Ranking ${searchData.listings.length} listings with listing-only data because Reddit research was unavailable...`
-                );
-            } else {
-                setLoadingMsg(`Ranking ${searchData.listings.length} listings...`);
+            if (!searchRes.ok || !searchData.success) {
+                throw new Error(searchData.error || 'Search failed.');
             }
 
-            const rankRes = await fetch('/api/rank', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    cars: searchData.listings,
-                    preferences: {
-                        budget: formData.budget,
-                        maxMileage: formData.maxMileage,
-                        useCase: formData.useCase,
-                        duration: formData.duration,
-                        location: formData.location,
-                        reliabilityIntent: Boolean(searchData.searchContext?.reliabilityIntent),
-                    },
-                }),
-            });
+            if (!searchData.listings || searchData.listings.length === 0) {
+                alert('No listings found. Try a different search.');
+                return;
+            }
 
-            const rankData = await rankRes.json();
-            const rankedListings = sortCarsByScoreDesc(rankData.rankings || searchData.listings);
-
-            sessionStorage.setItem(
-                'carma-results',
-                JSON.stringify({
-                    rankings: rankedListings,
-                    query: formData.query,
-                    preferences: formData,
-                    source: searchData.source || 'pipeline',
-                    searchContext: searchData.searchContext || null,
-                    timestamp: new Date().toISOString(),
-                })
-            );
-
-            router.push('/results');
+            await rankAndNavigate(searchData.listings, formData, searchData);
         } catch (error) {
             console.error('Search failed:', error);
             alert(error.message || 'Something went wrong. Please try again.');
-        } finally {
             setLoading(false);
             setLoadingMsg('');
         }
