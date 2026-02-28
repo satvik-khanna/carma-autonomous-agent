@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: carma
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: YUTORI_API_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-2
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: DYNAMODB_TABLE_NAME
+        value: carma-listings
+      - key: S3_BUCKET_NAME
+        value: carma-pipeline-data
