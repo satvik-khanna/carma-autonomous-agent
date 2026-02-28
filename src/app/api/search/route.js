@@ -1,20 +1,9 @@
 import { searchListings } from '@/lib/aws';
+import { searchCraigslistCars } from '@/lib/craigslistPipeline';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const IS_CLOUD = Boolean(process.env.RENDER || process.env.VERCEL || process.env.NODE_ENV === 'production');
-
-let searchCraigslistCars = null;
-if (!IS_CLOUD) {
-    try {
-        const mod = await import('@/lib/craigslistPipeline');
-        searchCraigslistCars = mod.searchCraigslistCars;
-    } catch {
-        // craigslistPipeline not available
-    }
-}
 
 export async function POST(request) {
     try {
@@ -32,7 +21,7 @@ export async function POST(request) {
             ? Number(maxMileage)
             : null;
 
-        // Try DynamoDB first (works on Render + local)
+        // 1) Check DynamoDB for cached pipeline results
         try {
             const dynamoListings = await searchListings(query);
             if (dynamoListings.length > 0) {
@@ -60,43 +49,30 @@ export async function POST(request) {
                 });
             }
         } catch (err) {
-            console.warn('DynamoDB search unavailable:', err.message);
+            console.warn('DynamoDB lookup skipped:', err.message);
         }
 
-        // Fallback to local pipeline (local dev only — never on Render)
-        if (searchCraigslistCars) {
-            const { listings: buyListings, searchContext } = await searchCraigslistCars({
-                query,
-                location,
-                maxMileage: normalizedMaxMileage,
-                maxResults,
-            });
+        // 2) DynamoDB miss — run the pipeline on-demand, which scrapes + uploads to AWS
+        const { listings: buyListings, searchContext } = await searchCraigslistCars({
+            query,
+            location,
+            maxMileage: normalizedMaxMileage,
+            maxResults,
+        });
 
-            const allListings = buyListings.map((listing) => ({
-                ...listing,
-                listingType: 'buy',
-            }));
+        const allListings = buyListings.map((listing) => ({
+            ...listing,
+            listingType: 'buy',
+        }));
 
-            return NextResponse.json({
-                success: true,
-                count: allListings.length,
-                listings: allListings,
-                query,
-                source: 'local',
-                searchContext,
-            });
-        }
-
-        // No data in DynamoDB and no local pipeline available
-        const availableCars = [
-            'toyota camry', '2014 toyota camry', 'honda accord',
-            'bmw 330i', 'infiniti q50', 'lexus is350', 'toyota supra',
-        ];
         return NextResponse.json({
-            success: false,
-            error: `No listings found for "${query}". Available searches: ${availableCars.join(', ')}. Run the pipeline locally to add more cars.`,
-            availableSearches: availableCars,
-        }, { status: 404 });
+            success: true,
+            count: allListings.length,
+            listings: allListings,
+            query,
+            source: 'pipeline',
+            searchContext,
+        });
     } catch (error) {
         console.error('Search API error:', error);
         return NextResponse.json(

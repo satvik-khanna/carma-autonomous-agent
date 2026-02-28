@@ -1,9 +1,8 @@
 services:
   - type: web
     name: carma
-    runtime: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: NODE_ENV
         value: production
