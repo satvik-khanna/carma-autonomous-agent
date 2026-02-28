@@ -147,13 +147,18 @@ async function findBestDataFile(query, prefixes) {
     }
 
     const queryTokens = tokenize(query);
+    const requiredTokens = queryTokens.filter((token) => !/^\d{4}$/.test(token));
+    const tokensToMatch = requiredTokens.length > 0 ? requiredTokens : queryTokens;
     const best = files
         .map((file) => ({
             file,
-            score: scoreFileMatch(file, queryTokens),
+            ...scoreFileMatch(file, tokensToMatch),
         }))
-        .filter((candidate) => candidate.score >= Math.max(2, queryTokens.length))
-        .sort((a, b) => b.score - a.score)[0];
+        .filter((candidate) => candidate.matchedTokenCount === tokensToMatch.length)
+        .sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return b.matchedTokenCount - a.matchedTokenCount;
+        })[0];
 
     return best ? path.join(STRUCTURED_DIR, best.file) : null;
 }
@@ -173,19 +178,22 @@ async function safeReadStructuredDir() {
 function scoreFileMatch(fileName, queryTokens) {
     const fileTokens = tokenize(
         fileName
-            .replace(/^listings_structured_/, '')
+            .replace(/^listings_(?:structured|enriched)_/, '')
             .replace(/\.json$/, '')
     );
 
     let score = 0;
+    let matchedTokenCount = 0;
     for (const token of queryTokens) {
         if (fileTokens.includes(token)) {
             score += 2;
+            matchedTokenCount += 1;
         } else if (fileTokens.some((fileToken) => fileToken.includes(token) || token.includes(fileToken))) {
             score += 1;
+            matchedTokenCount += 1;
         }
     }
-    return score;
+    return { score, matchedTokenCount };
 }
 
 async function runCraigslistPipeline(query, { stages = [1, 2, 3, 4] } = {}) {

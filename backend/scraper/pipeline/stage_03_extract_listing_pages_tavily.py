@@ -16,9 +16,11 @@ Output format is identical to the Tavily version — Stage 4 is unchanged.
 from __future__ import annotations
 
 import csv
+import html as html_lib
 import json
 import os
 import re
+import socket
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -26,9 +28,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import requests
 import random
-from bs4 import BeautifulSoup
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+try:
+    import requests
+except ImportError:
+    requests = None
+
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
 
 from tavily_client import stage_dir, query_slug
 
@@ -53,6 +65,7 @@ REQUEST_TIMEOUT       = (5, 15)  # (connect timeout, read timeout)
 MAX_RETRIES           = 3
 RETRY_BACKOFF         = 3       # seconds, doubles each retry
 SNIPPET_CHARS         = 220
+MAX_LISTINGS_TO_SCRAPE = max(1, int(os.environ.get("MAX_LISTINGS_TO_SCRAPE", "20")))
 
 HEADERS = {
     "User-Agent": (
@@ -77,6 +90,9 @@ LISTING_ID_RE = re.compile(r"/(\d{8,})\.html")
 
 def parse_listing_page(html: str, url: str) -> Dict[str, Any]:
     """Extract raw_content text and image URLs from a CL listing page."""
+    if BeautifulSoup is None:
+        return parse_listing_page_fallback(html, url)
+
     soup = BeautifulSoup(html, "html.parser")
     parts: List[str] = []
 
@@ -164,30 +180,147 @@ def parse_listing_page(html: str, url: str) -> Dict[str, Any]:
     return {"raw_content": raw_content, "images": images}
 
 
+def parse_listing_page_fallback(html: str, url: str) -> Dict[str, Any]:
+    """Extract Craigslist listing data without BeautifulSoup."""
+    parts: List[str] = []
+
+    breadcrumb = extract_block_text(html, r'<div[^>]+id="breadcrumbs"[^>]*>(.*?)</div>')
+    if breadcrumb:
+        parts.append(breadcrumb.replace(">", " > "))
+
+    for label, dt in re.findall(
+        r'(?is)<p[^>]+class="postinginfo"[^>]*>(.*?)<time[^>]+datetime="([^"]+)"',
+        html,
+    ):
+        label_text = clean_text(label).lower()
+        if "post" in label_text:
+            parts.append(f"posted: {dt}")
+        elif "updat" in label_text:
+            parts.append(f"updated: {dt}")
+
+    title_text = extract_block_text(html, r'<span[^>]+id="titletextonly"[^>]*>(.*?)</span>')
+    if not title_text:
+        title_text = extract_block_text(html, r'<span[^>]+class="postingtitletext"[^>]*>(.*?)</span>')
+    price_text = extract_block_text(html, r'<span[^>]+class="price"[^>]*>(.*?)</span>')
+    location_text = extract_block_text(html, r'<small[^>]*>\s*\((.*?)\)\s*</small>')
+
+    if title_text:
+        header = title_text
+        if price_text:
+            header += f" - {price_text}"
+        if location_text:
+            header += f" ({location_text})"
+        parts.append(f"# {header}")
+
+    for attrgroup in re.findall(r'(?is)<p[^>]+class="attrgroup"[^>]*>(.*?)</p>', html):
+        for span in re.findall(r'(?is)<span[^>]*>(.*?)</span>', attrgroup):
+            text = clean_text(span)
+            if text:
+                parts.append(text)
+
+    map_match = re.search(r'https://www\.google\.com/maps/search/[^"\']+', html)
+    if map_match:
+        parts.append(html_lib.unescape(map_match.group(0)))
+
+    body_match = re.search(r'(?is)<section[^>]+id="postingbody"[^>]*>(.*?)</section>', html)
+    if body_match:
+        body_text = clean_text(body_match.group(1), preserve_newlines=True)
+        if body_text:
+            parts.append(body_text)
+
+    for info in re.findall(r'(?is)<p[^>]+class="postinginfo"[^>]*>(.*?)</p>', html):
+        text = clean_text(info)
+        if text:
+            parts.append(text)
+
+    images = extract_image_urls_fallback(html)
+    raw_content = "\n\n".join(part for part in parts if part)
+    return {"raw_content": raw_content, "images": images}
+
+
+def extract_block_text(html: str, pattern: str) -> str:
+    match = re.search(pattern, html)
+    return clean_text(match.group(1)) if match else ""
+
+
+def clean_text(fragment: str, preserve_newlines: bool = False) -> str:
+    if not fragment:
+        return ""
+
+    text = re.sub(r'(?is)<\s*br\s*/?>', '\n' if preserve_newlines else ' ', fragment)
+    text = re.sub(r'(?is)</\s*p\s*>', '\n' if preserve_newlines else ' ', text)
+    text = re.sub(r'(?is)<[^>]+>', ' ', text)
+    text = html_lib.unescape(text)
+    if preserve_newlines:
+        lines = [re.sub(r'\s+', ' ', line).strip() for line in text.splitlines()]
+        return "\n".join(line for line in lines if line).strip()
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+def extract_image_urls_fallback(html: str) -> List[str]:
+    images: List[str] = []
+    patterns = [
+        r'(?i)(?:src|data-src)=["\'](https?://[^"\']+\.(?:jpg|jpeg|png|webp))["\']',
+        r'(?i)"(https?://[^"]+\.(?:jpg|jpeg|png|webp))"',
+    ]
+
+    for pattern in patterns:
+        for src in re.findall(pattern, html):
+            normalized = re.sub(r'_\d+x\d+\.jpg$', '_600x450.jpg', html_lib.unescape(src))
+            if "50x50" in normalized:
+                continue
+            if normalized not in images:
+                images.append(normalized)
+
+    return images
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  HTTP fetch with retry — one session per thread to avoid races
 # ═══════════════════════════════════════════════════════════════════
 
-def fetch_url(url: str, session: requests.Session) -> tuple[Optional[str], Optional[str]]:
+def fetch_url(url: str, session: Any = None) -> tuple[Optional[str], Optional[str]]:
     """Fetch URL, return (html, error). Retries on transient failures."""
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            resp = session.get(url, timeout=REQUEST_TIMEOUT)
-            if resp.status_code == 200:
-                return resp.text, None
-            if resp.status_code == 404:
+            if requests is not None and session is not None:
+                resp = session.get(url, timeout=REQUEST_TIMEOUT)
+                status_code = resp.status_code
+                body = resp.text
+            else:
+                request = Request(url, headers=HEADERS, method="GET")
+                with urlopen(request, timeout=REQUEST_TIMEOUT[1]) as resp:
+                    status_code = resp.status
+                    body = resp.read().decode("utf-8", errors="replace")
+
+            if status_code == 200:
+                return body, None
+            if status_code == 404:
                 return None, "404 not found"
-            if resp.status_code in (403, 429):
+            if status_code in (403, 429):
                 wait = RETRY_BACKOFF * (2 ** attempt)
-                print(f"  ⚠️  {resp.status_code} on attempt {attempt}, waiting {wait}s...")
+                print(f"  ⚠️  {status_code} on attempt {attempt}, waiting {wait}s...")
                 time.sleep(wait)
                 continue
-            return None, f"http_{resp.status_code}"
-        except requests.exceptions.Timeout:
+            return None, f"http_{status_code}"
+        except HTTPError as exc:
+            if exc.code == 404:
+                return None, "404 not found"
+            if exc.code in (403, 429):
+                wait = RETRY_BACKOFF * (2 ** attempt)
+                print(f"  ⚠️  {exc.code} on attempt {attempt}, waiting {wait}s...")
+                time.sleep(wait)
+                continue
+            return None, f"http_{exc.code}"
+        except (socket.timeout, TimeoutError):
             if attempt == MAX_RETRIES:
                 return None, "timeout"
             time.sleep(RETRY_BACKOFF * attempt)
-        except requests.exceptions.RequestException as e:
+        except URLError as e:
+            if attempt == MAX_RETRIES:
+                return None, str(e.reason)
+            time.sleep(RETRY_BACKOFF * attempt)
+        except Exception as e:
             if attempt == MAX_RETRIES:
                 return None, str(e)
             time.sleep(RETRY_BACKOFF * attempt)
@@ -197,8 +330,10 @@ def fetch_url(url: str, session: requests.Session) -> tuple[Optional[str], Optio
 def fetch_and_parse(url: str) -> Dict[str, Any]:
     """Fetch and parse a single listing. Each call creates its own session."""
     # Per-thread session avoids shared state race conditions
-    session = requests.Session()
-    session.headers.update(HEADERS)
+    session = None
+    if requests is not None:
+        session = requests.Session()
+        session.headers.update(HEADERS)
 
     time.sleep(random.uniform(0.4, 1.2))
 
@@ -226,7 +361,8 @@ def extract_listing_id(url: str) -> str:
 def read_urls(csv_path: Path) -> List[str]:
     with csv_path.open("r", encoding="utf-8") as f:
         r = csv.DictReader(f)
-        return [row["url"].strip() for row in r if row.get("url")]
+        urls = [row["url"].strip() for row in r if row.get("url")]
+    return urls[:MAX_LISTINGS_TO_SCRAPE]
 
 
 def snippet(text: Optional[str], n: int = SNIPPET_CHARS) -> str:
@@ -292,7 +428,12 @@ def main() -> int:
     total = len(urls)
     est_seconds = round((total / MAX_WORKERS) * 1.3)
     print(f"📋 {total} listing URLs to scrape for \"{CAR_QUERY}\"")
+<<<<<<< HEAD
     print(f"   {MAX_WORKERS} workers, ~0.8s avg delay  (~{est_seconds}s estimated)")
+=======
+    print(f"   capped at top {MAX_LISTINGS_TO_SCRAPE} links from Stage 2")
+    print(f"   {MAX_WORKERS} workers × {DELAY_BETWEEN_REQUESTS}s delay  (~{est_minutes} min estimated)")
+>>>>>>> ba2315c (Fix Craigslist cache matching and scraper fallback)
 
     all_results: List[Dict[str, Any]] = []
     completed = 0
