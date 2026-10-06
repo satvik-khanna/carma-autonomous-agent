@@ -570,6 +570,8 @@ def main() -> int:
             num_results = len(result.get("results", []))
             subreddits = set(r.get("subreddit", "") for r in result.get("results", []) if r.get("subreddit"))
             print(f"        → {num_results} results from {', '.join(subreddits) if subreddits else 'reddit'}")
+            if result.get("error"):
+                print(f"        ⚠️  search failed: {result['error'][:200]}")
 
             # Analyze based on category
             if cat == "should_i_buy":

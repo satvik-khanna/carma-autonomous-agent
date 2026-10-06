@@ -40,6 +40,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from query_match import phrase_pattern, split_query
 from tavily_client import stage_dir, query_slug
 from trims import detect_trim
 
@@ -50,9 +51,9 @@ if not _car_query:
     sys.exit(1)
 
 SLUG = query_slug(_car_query)
-_query_words = _car_query.lower().split()
-QUERY_MAKE = _query_words[0] if len(_query_words) >= 1 else None
-QUERY_MODEL = _query_words[1] if len(_query_words) >= 2 else None
+QUERY_MAKE, QUERY_MODEL = split_query(_car_query)
+QUERY_MODEL = QUERY_MODEL or None
+_MODEL_PATTERN = phrase_pattern(QUERY_MODEL) if QUERY_MODEL else None
 
 # ── Paths ──
 INPUT_JSONL = stage_dir(3) / f"listing_pages_{SLUG}.jsonl"
@@ -606,8 +607,9 @@ def parse_year_make_model_trim(
             year = None
 
     tl = t.lower()
-    make = QUERY_MAKE.title() if QUERY_MAKE and QUERY_MAKE in tl else None
-    model = QUERY_MODEL.title() if QUERY_MODEL and QUERY_MODEL in tl else None
+    model = QUERY_MODEL.title() if _MODEL_PATTERN and _MODEL_PATTERN.search(t) else None
+    # Sellers often omit the make ("Supra turbo 1987"); the model match implies it
+    make = QUERY_MAKE.title() if QUERY_MAKE and (QUERY_MAKE in tl or model) else None
     trim = detect_trim(t, make=make)
     return year, make, model, trim
 
@@ -711,6 +713,24 @@ def phone_numbers(text: str, post_id: str = "") -> List[str]:
     return cleaned
 
 
+POSTING_BODY_RE = re.compile(
+    r"QR Code Link to This Post\s*(.*?)\s*(?:post id:|$)",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+
+
+def extract_posting_body(text: str) -> str:
+    """The seller's own text, without Craigslist's nav, attributes, and footer."""
+    if not text:
+        return ""
+    m = POSTING_BODY_RE.search(text)
+    if not m:
+        return text
+    body = re.sub(r"\\([*_#\[\]()~-])", r"\1", m.group(1))
+    body = body.replace("**", "")
+    return re.sub(r"[ \t]+\n", "\n", body).strip()
+
+
 def extract_images(text: str) -> List[str]:
     urls = IMG_URL_RE.findall(text or "")
     seen: set = set()
@@ -780,7 +800,7 @@ def build_record(rec: Dict[str, Any]) -> Dict[str, Any]:
     # Images: prefer the Tavily 'images' field, fall back to regex in text
     tavily_images = rec.get("images") or []
     images = tavily_images if tavily_images else extract_images(text)
-    description = text[:8000] if text else ""
+    description = extract_posting_body(text)[:8000]
 
     return {
         "id": stable_id(source, listing_id, url),

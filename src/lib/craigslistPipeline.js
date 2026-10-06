@@ -514,6 +514,10 @@ function formatPipelineError(query, outputTail) {
         return `Craigslist pipeline failed for "${query}" because the Python scraper dependency "tavily" is not installed.`;
     }
 
+    if (/HTTP 432|exceeds your plan's set usage limit/i.test(output)) {
+        return 'The Tavily API key has run out of credits, so Craigslist can\'t be searched right now. Add credits or set a new TAVILY_API_KEY.';
+    }
+
     if (/TAVILY_API_KEY is not set/.test(output) || /No API key provided/i.test(output)) {
         return `Craigslist pipeline failed for "${query}" because TAVILY_API_KEY is not configured for the Python scraper.`;
     }

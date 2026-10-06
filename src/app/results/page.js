@@ -258,7 +258,7 @@ function Signals({ breakdown: b }) {
             {rows.map(([label, value]) => (
                 <div key={label}>
                     <dt>{label}</dt>
-                    <dd>{value}</dd>
+                    <dd>{typeof value === 'string' ? value.replace(/_/g, ' ') : value}</dd>
                 </div>
             ))}
         </dl>

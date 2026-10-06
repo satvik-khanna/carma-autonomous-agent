@@ -53,6 +53,11 @@ class TavilyHTTPClient:
         payload.update({k: v for k, v in kwargs.items() if v is not None})
         return self._post("/extract", payload)
 
+    def search(self, query, **kwargs):
+        payload = {"query": query}
+        payload.update({k: v for k, v in kwargs.items() if v is not None})
+        return self._post("/search", payload)
+
     def _post(self, path: str, payload: dict) -> dict:
         api_timeout = payload.get("timeout")
         request_timeout = 30.0
