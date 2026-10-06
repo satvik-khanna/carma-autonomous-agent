@@ -59,13 +59,25 @@ def title_from_bracket_text(bracket_text: str) -> Optional[str]:
     return lines[0] if lines else None
 
 
+MAKES = {
+    "acura", "audi", "bmw", "buick", "cadillac", "chevrolet", "chevy", "chrysler",
+    "dodge", "fiat", "ford", "genesis", "gmc", "honda", "hyundai", "infiniti",
+    "jaguar", "jeep", "kia", "land", "rover", "lexus", "lincoln", "mazda",
+    "mercedes", "mercedes-benz", "mini", "mitsubishi", "nissan", "porsche", "ram",
+    "subaru", "tesla", "toyota", "volkswagen", "vw", "volvo",
+}
+
+
 def title_matches_query(title: Optional[str], query: str) -> bool:
-    """Check if title contains ALL keywords from the query."""
+    """Title must contain every query keyword; the make may be omitted
+    (sellers often write "Supra turbo 1987" without "Toyota")."""
     if not title:
         return False
     t = title.lower()
     keywords = query.lower().split()
-    return all(kw in t for kw in keywords)
+    model_keywords = [kw for kw in keywords if kw not in MAKES]
+    required = model_keywords or keywords
+    return all(kw in t for kw in required)
 
 
 def parse_payload(payload: Dict[str, Any], query: str) -> List[Dict[str, Any]]:

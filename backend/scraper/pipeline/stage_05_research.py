@@ -41,9 +41,7 @@ SLUG = query_slug(CAR_QUERY)
 # ── Paths ──
 INPUT_JSON = stage_dir(4) / f"listings_structured_{SLUG}.json"
 
-STAGE_DIRS_EXTRA = {5: (Path(__file__).resolve().parent / ".." / ".." / "data" / "craigslist" / "05_research").resolve()}
-OUT_DIR = STAGE_DIRS_EXTRA[5]
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+OUT_DIR = stage_dir(5)
 
 OUTPUT_JSON = OUT_DIR / f"research_{SLUG}.json"
 

@@ -8,7 +8,7 @@ Carma is a decision engine that matches users with the ideal car to buy. It reas
 - **Backend Scraper:** Python + Tavily — `backend/`
 - **Scoring Engine:** Attribute-based ranking from scraped listing data
 - **Data Collection:** [Tavily](https://tavily.com) Search API
-- **Database:** AWS DynamoDB _(coming soon)_
+- **Storage:** none — every search scrapes Craigslist live into a temp dir that's deleted afterwards
 
 ## Getting Started
 
@@ -65,10 +65,10 @@ Copy `.env.local.example` to `.env.local` and fill in:
 
 ## How It Works
 
-1. **Search** — Enter car type, budget, location, and intended use
-2. **Aggregate** — Tavily searches Cars.com, CarGurus, AutoTrader, Craigslist and more
-3. **Score Listings** — Carma scores each listing on value, condition, buy quality, and user match (1–10)
-4. **Decide** — See ranked buy recommendations with transparent score explanations
+1. **Search** — Enter the car, budget, location, and intended use
+2. **Scrape** — `POST /api/search` runs the Python pipeline (stages 1–5) against current Craigslist listings; the browser polls `GET /api/search?job=<id>` until it's done (about a minute)
+3. **Score Listings** — Carma filters junk, dedupes, and scores each listing on value, condition, buy quality, and fit (1–10)
+4. **Decide** — See ranked listings with the reasoning behind each score and a link to the live ad
 
 ## Contributing
 

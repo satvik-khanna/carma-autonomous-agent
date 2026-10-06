@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import CarCard from '@/components/CarCard';
+import CarCard, { scoreClass } from '@/components/CarCard';
+import ScoreBar from '@/components/ScoreBar';
+import RankingBadge from '@/components/RankingBadge';
 import { sortCarsByScoreDesc } from '@/lib/scoringSort';
 
 export default function ResultsPage() {
@@ -20,13 +22,21 @@ export default function ResultsPage() {
         }
     }, []);
 
+    useEffect(() => {
+        if (!selectedCar) return undefined;
+        const onKey = (e) => {
+            if (e.key === 'Escape') closeModal();
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [selectedCar]);
+
     if (!results) {
         return (
-            <div className="loading-container" style={{ minHeight: '80vh', paddingTop: '8rem' }}>
-                <div className="loading-spinner" />
-                <p className="loading-text">Loading results...</p>
-                <button className="btn btn-secondary" onClick={() => router.push('/')}>
-                    ← Back to Search
+            <div className="container empty">
+                <p>No search results yet.</p>
+                <button className="btn" onClick={() => router.push('/')}>
+                    Start a search
                 </button>
             </div>
         );
@@ -40,6 +50,8 @@ export default function ResultsPage() {
 
     if (sortBy === 'overallScore') {
         cars = sortCarsByScoreDesc(cars);
+    } else if (sortBy === 'priceAsc') {
+        cars = [...cars].sort((a, b) => (Number(a.priceNumeric) || Infinity) - (Number(b.priceNumeric) || Infinity));
     } else {
         cars = [...cars].sort((a, b) => {
             const left = Number(a?.[sortBy]);
@@ -50,82 +62,68 @@ export default function ResultsPage() {
             return 0;
         });
     }
-    const closeModal = () => {
+
+    function closeModal() {
         setSelectedCar(null);
         setSelectedImageIndex(0);
-    };
+    }
+
+    const total = results.rankings?.length || 0;
+    const searchedAt = new Date(results.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
     return (
         <div className="container">
-            <div className="results-header">
-                <h2>
-                    Results for &quot;<span style={{ color: 'var(--color-accent-secondary)' }}>{results.query}</span>&quot;
-                </h2>
+            <header className="results-head">
+                <h1 className="results-title">{results.query}</h1>
                 <p className="results-meta">
-                    {cars.length} Craigslist listings found · Highest score first · Searched at{' '}
-                    {new Date(results.timestamp).toLocaleTimeString()}
+                    {total} {total === 1 ? 'listing' : 'listings'} on Craigslist right now · searched at {searchedAt}
                 </p>
-                {results.searchContext?.reliabilityIntent && (
-                    <p className="results-meta" style={{ marginTop: '0.5rem' }}>
+                {results.searchContext?.reliabilityIntent ? (
+                    <p className="results-meta">
                         {results.searchContext.researchApplied
-                            ? 'Reddit reliability research was applied to re-score and re-rank these listings.'
-                            : 'Reliability intent was detected, but Reddit research was unavailable, so the ranking fell back to listing-only signals.'}
+                            ? 'You asked about reliability, so Reddit owner reports were factored into the scores.'
+                            : 'You asked about reliability, but no Reddit owner reports came back, so scores use the listings alone.'}
                     </p>
-                )}
+                ) : null}
+            </header>
 
-                <div style={{
-                    display: 'flex',
-                    gap: '1rem',
-                    marginTop: '1.5rem',
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                }}>
-                    <div className="input-group" style={{ minWidth: '180px' }}>
-                        <label htmlFor="sortBy">Sort By</label>
-                        <select
-                            id="sortBy"
-                            className="input"
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                        >
-                            <option value="overallScore">Overall Score</option>
-                            <option value="valueScore">Value Score</option>
-                            <option value="buyScore">Buy Score</option>
-                            <option value="matchScore">Match Score</option>
-                            <option value="reliabilityScore">Reliability Score</option>
-                        </select>
-                    </div>
-
-                    <div className="input-group" style={{ minWidth: '180px' }}>
-                        <label htmlFor="filter">Filter</label>
-                        <select
-                            id="filter"
-                            className="input"
-                            value={filterRecommendation}
-                            onChange={(e) => setFilterRecommendation(e.target.value)}
-                        >
-                            <option value="all">All Results</option>
-                            <option value="buy">🟢 Great Deal</option>
-                            <option value="consider">🟡 Consider</option>
-                        </select>
-                    </div>
-
-                    <div style={{ marginLeft: 'auto' }}>
-                        <button className="btn btn-secondary" onClick={() => router.push('/')}>
-                            ← New Search
-                        </button>
-                    </div>
-                </div>
+            <div className="toolbar">
+                <label>
+                    Sort
+                    <select className="select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                        <option value="overallScore">Best score</option>
+                        <option value="priceAsc">Lowest price</option>
+                        <option value="valueScore">Best value</option>
+                        <option value="matchScore">Best fit for you</option>
+                        <option value="reliabilityScore">Most reliable</option>
+                    </select>
+                </label>
+                <label>
+                    Show
+                    <select className="select" value={filterRecommendation} onChange={(e) => setFilterRecommendation(e.target.value)}>
+                        <option value="all">Everything</option>
+                        <option value="buy">Worth a look</option>
+                        <option value="consider">Maybe</option>
+                    </select>
+                </label>
+                <span className="toolbar-spacer" />
+                <button className="btn btn-sm" onClick={() => router.push('/')}>
+                    New search
+                </button>
             </div>
 
-            <div className="results-grid">
-                {cars.map((car, index) => (
-                    <div
-                        key={car.id || index}
-                        className="animate-fade-in-up"
-                        style={{ animationDelay: `${index * 0.08}s`, opacity: 0 }}
-                    >
+            {cars.length === 0 ? (
+                <div className="empty">
+                    <p>Nothing matches that filter.</p>
+                    <button className="btn" onClick={() => setFilterRecommendation('all')}>
+                        Show everything
+                    </button>
+                </div>
+            ) : (
+                <ol className="listing-list">
+                    {cars.map((car, index) => (
                         <CarCard
+                            key={car.id || index}
                             car={car}
                             rank={index + 1}
                             onClick={(c) => {
@@ -133,304 +131,182 @@ export default function ResultsPage() {
                                 setSelectedImageIndex(0);
                             }}
                         />
-                    </div>
-                ))}
-            </div>
-
-            {cars.length === 0 ? (
-                <div style={{
-                    textAlign: 'center',
-                    padding: '4rem 0',
-                    color: 'var(--color-text-secondary)',
-                }}>
-                    <p style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>No cars match your filter</p>
-                    <button className="btn btn-primary" onClick={() => setFilterRecommendation('all')}>
-                        Show All Results
-                    </button>
-                </div>
-            ) : null}
+                    ))}
+                </ol>
+            )}
 
             {selectedCar ? (
-                <div
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 200,
-                        background: 'rgba(0,0,0,0.7)',
-                        backdropFilter: 'blur(8px)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '2rem',
-                    }}
-                    onClick={closeModal}
-                >
-                    <div
-                        className="card"
-                        style={{
-                            maxWidth: '640px',
-                            width: '100%',
-                            maxHeight: '80vh',
-                            overflow: 'auto',
-                            padding: '2rem',
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+                <div className="modal-backdrop" onClick={closeModal}>
+                    <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-head">
                             <div>
-                                <h3 style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>{selectedCar.title}</h3>
-                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-                                    {selectedCar.source} · {selectedCar.year || 'N/A'}
-                                    {selectedCar.mileage ? ` · ${Number(selectedCar.mileage).toLocaleString()} miles` : ''}
-                                    {selectedCar.location ? ` · ${selectedCar.location}` : ''}
+                                <h2 className="modal-title">{selectedCar.title}</h2>
+                                <p className="results-meta">
+                                    {[
+                                        selectedCar.year,
+                                        selectedCar.mileage ? `${Number(selectedCar.mileage).toLocaleString()} mi` : null,
+                                        selectedCar.location,
+                                    ].filter(Boolean).join(' · ')}
                                 </p>
                             </div>
-                            <button
-                                className="btn btn-icon btn-secondary"
-                                onClick={closeModal}
-                                style={{ fontSize: '1.2rem' }}
-                            >
-                                ✕
+                            <button className="modal-close" onClick={closeModal} aria-label="Close">
+                                ×
                             </button>
                         </div>
 
-                        {(selectedCar.images?.length || selectedCar.imageUrls?.length || selectedCar.image) ? (
-                            <CarGallery
-                                title={selectedCar.title}
-                                images={selectedCar.images || selectedCar.imageUrls || [selectedCar.image]}
-                                selectedImageIndex={selectedImageIndex}
-                                setSelectedImageIndex={setSelectedImageIndex}
-                            />
-                        ) : null}
+                        <CarGallery
+                            title={selectedCar.title}
+                            images={selectedCar.images || selectedCar.imageUrls || [selectedCar.image]}
+                            selectedImageIndex={selectedImageIndex}
+                            setSelectedImageIndex={setSelectedImageIndex}
+                        />
 
-                        <div style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1.5rem' }}>
-                            {selectedCar.price || 'Contact for Price'}
+                        <div className="modal-price-row">
+                            <span className="modal-price">{selectedCar.price || 'No price listed'}</span>
+                            <span>
+                                <span className={`score-num ${scoreClass(selectedCar.overallScore || 5)}`}>
+                                    {selectedCar.overallScore || 5}
+                                </span>
+                                <span className="score-of">/10</span>
+                            </span>
                         </div>
 
-                        <div className="detail-recommendation" style={{ marginBottom: '1.5rem' }}>
-                            <h4>
-                                {selectedCar.recommendation === 'buy' ? '🟢' : '🟡'}
-                                {' '}AI Verdict: {selectedCar.recommendation === 'buy' ? 'GREAT DEAL' : 'CONSIDER'}
-                            </h4>
+                        <div className="modal-section">
+                            <h4>Our take <RankingBadge recommendation={selectedCar.recommendation} /></h4>
                             <p>{selectedCar.aiExplanation}</p>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                            <ScoreBarInline label="Overall" score={selectedCar.overallScore} variant="purple" />
-                            <ScoreBarInline label="Value" score={selectedCar.valueScore} variant="purple" />
-                            <ScoreBarInline label="Condition Score" score={selectedCar.conditionScore} variant="orange" />
-                            <ScoreBarInline label="Buy Score" score={selectedCar.buyScore} variant="green" />
-                            <ScoreBarInline label="Match" score={selectedCar.matchScore} variant="orange" />
+                        <div className="modal-section modal-bars">
+                            <ScoreBar label="Value" score={selectedCar.valueScore || 5} />
+                            <ScoreBar label="Condition" score={selectedCar.conditionScore || 5} />
+                            <ScoreBar label="Buy" score={selectedCar.buyScore || 5} />
+                            <ScoreBar label="Fit for you" score={selectedCar.matchScore || 5} />
                             {selectedCar.reliabilityScore ? (
-                                <ScoreBarInline label="Reliability" score={selectedCar.reliabilityScore} variant="green" />
+                                <ScoreBar label="Reliability" score={selectedCar.reliabilityScore} />
                             ) : null}
                         </div>
 
                         {selectedCar.scoreBreakdown ? (
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Scoring Signals</h4>
-                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: 1.6 }}>
-                                    Budget fit: <strong>{selectedCar.scoreBreakdown.budgetFit || 'unknown'}</strong> ·
-                                    {' '}Market position: <strong>{selectedCar.scoreBreakdown.marketPosition || 'unknown'}</strong> ·
-                                    {' '}Title: <strong>{selectedCar.scoreBreakdown.titleStatus || 'unknown'}</strong> ·
-                                    {' '}Accident: <strong>{selectedCar.scoreBreakdown.accidentSeverity || 'none'}</strong> ·
-                                    {' '}Seller: <strong>{selectedCar.scoreBreakdown.sellerType || 'unknown'}</strong> ·
-                                    {' '}Owners: <strong>{selectedCar.scoreBreakdown.ownerCount ?? 'N/A'}</strong> ·
-                                    {' '}Service records: <strong>{selectedCar.scoreBreakdown.serviceRecordCount ?? 'N/A'}</strong> ·
-                                    {' '}Miles/year: <strong>{selectedCar.scoreBreakdown.mileagePerYear ?? 'N/A'}</strong> ·
-                                    {' '}Listing age: <strong>{selectedCar.scoreBreakdown.listingAgeDays ?? 'N/A'} days</strong> ·
-                                    {' '}VIN: <strong>{selectedCar.scoreBreakdown.hasVin ? 'yes' : 'no'}</strong> ·
-                                    {' '}Photos: <strong>{selectedCar.scoreBreakdown.imageCount ?? '0'}</strong> ·
-                                    {' '}Data completeness: <strong>{selectedCar.scoreBreakdown.listingCompleteness ?? 'N/A'}%</strong>
-                                    {selectedCar.scoreBreakdown.researchAvailable ? (
-                                        <>
-                                            {' '}· Reddit research: <strong>{selectedCar.scoreBreakdown.researchScore ?? 'N/A'}/10</strong>
-                                            {' '}· Reliability: <strong>{selectedCar.scoreBreakdown.redditReliabilityScore ?? 'N/A'}/10</strong>
-                                            {' '}· Reliability rating: <strong>{selectedCar.scoreBreakdown.reliabilityRating || 'unknown'}</strong>
-                                        </>
-                                    ) : null}
+                            <div className="modal-section">
+                                <h4>What went into the score</h4>
+                                <Signals breakdown={selectedCar.scoreBreakdown} />
+                            </div>
+                        ) : null}
+
+                        {selectedCar.research?.verdict ? (
+                            <div className="modal-section">
+                                <h4>What owners on Reddit say</h4>
+                                <p>{selectedCar.research.verdict}</p>
+                                {selectedCar.research.knownIssues?.length ? (
+                                    <p>Known issues: {selectedCar.research.knownIssues.join(', ')}</p>
+                                ) : null}
+                            </div>
+                        ) : null}
+
+                        {selectedCar.description ? (
+                            <div className="modal-section">
+                                <h4>From the ad</h4>
+                                <p style={{ whiteSpace: 'pre-line' }}>
+                                    {selectedCar.description.substring(0, 500)}
+                                    {selectedCar.description.length > 500 ? '…' : ''}
                                 </p>
                             </div>
                         ) : null}
 
-                        {selectedCar.research && (
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Reddit Research</h4>
-                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: 1.6 }}>
-                                    {selectedCar.research.verdict || 'Reddit research was included in the score.'}
-                                </p>
-                                {selectedCar.research.knownIssues?.length ? (
-                                    <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: 1.6, marginTop: '0.5rem' }}>
-                                        Known issues: <strong>{selectedCar.research.knownIssues.join(', ')}</strong>
-                                    </p>
-                                ) : null}
-                            </div>
-                        )}
-
-                        {selectedCar.description && (
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Description</h4>
-                                <p style={{
-                                    color: 'var(--color-text-secondary)',
-                                    fontSize: '0.875rem',
-                                    lineHeight: 1.6,
-                                    whiteSpace: 'pre-line',
-                                }}>
-                                    {selectedCar.description.substring(0, 500)}
-                                    {selectedCar.description.length > 500 ? '...' : ''}
-                                </p>
-                            </div>
-                        )}
-
-                        <a
-                            href={selectedCar.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-primary btn-lg"
-                            style={{ width: '100%', textAlign: 'center' }}
-                        >
-                            View on {selectedCar.source} →
-                        </a>
+                        {selectedCar.url ? (
+                            <a
+                                href={selectedCar.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-primary btn-block"
+                            >
+                                Open the ad on Craigslist ↗
+                            </a>
+                        ) : null}
                     </div>
                 </div>
             ) : null}
         </div>
+    );
+}
+
+function Signals({ breakdown: b }) {
+    const rows = [
+        ['Budget fit', b.budgetFit || 'unknown'],
+        ['Price vs. similar cars', b.marketPosition || 'unknown'],
+        ['Title', b.titleStatus || 'unknown'],
+        ['Accident history', b.accidentSeverity || 'none mentioned'],
+        ['Seller', b.sellerType || 'unknown'],
+        ['Owners', b.ownerCount ?? '—'],
+        ['Service records', b.serviceRecordCount ?? '—'],
+        ['Miles per year', b.mileagePerYear != null ? Number(b.mileagePerYear).toLocaleString() : '—'],
+        ['Listed', b.listingAgeDays != null ? `${b.listingAgeDays} days ago` : '—'],
+        ['VIN in ad', b.hasVin ? 'yes' : 'no'],
+        ['Photos', b.imageCount ?? 0],
+        ['Ad completeness', b.listingCompleteness != null ? `${b.listingCompleteness}%` : '—'],
+    ];
+
+    if (b.researchAvailable) {
+        rows.push(
+            ['Reddit score', b.researchScore != null ? `${b.researchScore}/10` : '—'],
+            ['Reddit reliability', b.redditReliabilityScore != null ? `${b.redditReliabilityScore}/10` : '—'],
+        );
+    }
+
+    return (
+        <dl className="signals">
+            {rows.map(([label, value]) => (
+                <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                </div>
+            ))}
+        </dl>
     );
 }
 
 function CarGallery({ title, images, selectedImageIndex, setSelectedImageIndex }) {
     const galleryImages = (images || []).filter(Boolean);
-    if (galleryImages.length === 0) {
-        return null;
-    }
+    if (galleryImages.length === 0) return null;
+
+    const step = (delta) => (e) => {
+        e.stopPropagation();
+        setSelectedImageIndex((prev) => (prev + delta + galleryImages.length) % galleryImages.length);
+    };
 
     return (
-        <div style={{ marginBottom: '1.5rem' }}>
-            <div
-                style={{
-                    position: 'relative',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    background: '#111',
-                }}
-            >
+        <div className="gallery">
+            <div className="gallery-main">
                 <img
                     src={galleryImages[selectedImageIndex] || galleryImages[0]}
-                    alt={`${title} - Photo ${selectedImageIndex + 1}`}
-                    style={{
-                        width: '100%',
-                        height: '280px',
-                        objectFit: 'cover',
-                        display: 'block',
-                    }}
+                    alt={`${title}, photo ${selectedImageIndex + 1}`}
                 />
                 {galleryImages.length > 1 ? (
                     <>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedImageIndex((prev) => (prev - 1 + galleryImages.length) % galleryImages.length);
-                            }}
-                            style={galleryNavButton('left')}
-                        >
-                            ‹
-                        </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedImageIndex((prev) => (prev + 1) % galleryImages.length);
-                            }}
-                            style={galleryNavButton('right')}
-                        >
-                            ›
-                        </button>
-                        <div style={{
-                            position: 'absolute',
-                            bottom: '8px',
-                            right: '12px',
-                            background: 'rgba(0,0,0,0.6)',
-                            color: '#fff',
-                            padding: '2px 10px',
-                            borderRadius: '12px',
-                            fontSize: '0.75rem',
-                        }}>
+                        <button className="gallery-nav prev" onClick={step(-1)} aria-label="Previous photo">‹</button>
+                        <button className="gallery-nav next" onClick={step(1)} aria-label="Next photo">›</button>
+                        <span className="gallery-count">
                             {selectedImageIndex + 1} / {galleryImages.length}
-                        </div>
+                        </span>
                     </>
                 ) : null}
             </div>
             {galleryImages.length > 1 ? (
-                <div style={{
-                    display: 'flex',
-                    gap: '6px',
-                    marginTop: '8px',
-                    overflowX: 'auto',
-                    paddingBottom: '4px',
-                }}>
+                <div className="thumbs">
                     {galleryImages.slice(0, 10).map((url, i) => (
                         <img
                             key={i}
                             src={url}
-                            alt={`Thumbnail ${i + 1}`}
+                            alt=""
+                            className={`thumb ${i === selectedImageIndex ? 'is-active' : ''}`}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedImageIndex(i);
-                            }}
-                            style={{
-                                width: '56px',
-                                height: '42px',
-                                objectFit: 'cover',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                border: i === selectedImageIndex
-                                    ? '2px solid var(--color-accent-secondary, #a78bfa)'
-                                    : '2px solid transparent',
-                                opacity: i === selectedImageIndex ? 1 : 0.6,
-                                transition: 'opacity 0.2s, border-color 0.2s',
-                                flexShrink: 0,
                             }}
                         />
                     ))}
                 </div>
             ) : null}
-        </div>
-    );
-}
-
-function galleryNavButton(side) {
-    return {
-        position: 'absolute',
-        [side]: '8px',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        background: 'rgba(0,0,0,0.6)',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '50%',
-        width: '36px',
-        height: '36px',
-        cursor: 'pointer',
-        fontSize: '1.1rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    };
-}
-
-function ScoreBarInline({ label, score, variant }) {
-    const percentage = ((score || 5) / 10) * 100;
-    return (
-        <div className="score-bar-container">
-            <div className="score-bar-label">
-                <span>{label}</span>
-                <span>{score || 5}/10</span>
-            </div>
-            <div className="score-bar">
-                <div
-                    className={`score-bar-fill ${variant}`}
-                    style={{ width: `${percentage}%` }}
-                />
-            </div>
         </div>
     );
 }

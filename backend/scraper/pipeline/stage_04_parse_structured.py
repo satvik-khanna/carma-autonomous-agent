@@ -777,7 +777,9 @@ def build_record(rec: Dict[str, Any]) -> Dict[str, Any]:
     posted_at = extract_posted_at(text)
     updated_at = extract_updated_at(text)
 
-    images = extract_images(text)
+    # Images: prefer the Tavily 'images' field, fall back to regex in text
+    tavily_images = rec.get("images") or []
+    images = tavily_images if tavily_images else extract_images(text)
     description = text[:8000] if text else ""
 
     return {

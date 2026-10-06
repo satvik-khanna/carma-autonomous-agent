@@ -1,12 +1,15 @@
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
+import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 
 const PROJECT_ROOT = process.cwd();
-const STRUCTURED_DIR = path.join(PROJECT_ROOT, 'backend', 'data', 'craigslist', '04_structured');
 const PIPELINE_DIR = path.join(PROJECT_ROOT, 'backend', 'scraper', 'pipeline');
 const PIPELINE_SCRIPT = path.join(PIPELINE_DIR, 'run_pipeline.py');
-const PIPELINE_TIMEOUT_MS = 4 * 60 * 1000;
+const PIPELINE_TIMEOUT_MS = 6 * 60 * 1000;
+const VENV_PYTHON = path.join(PROJECT_ROOT, '.venv', 'bin', 'python');
+const PYTHON_BIN = process.env.PYTHON_BIN || (existsSync(VENV_PYTHON) ? VENV_PYTHON : 'python3');
 const CURRENT_YEAR = new Date().getFullYear();
 const RELIABILITY_INTENT_PATTERNS = [
     /\breliable\b/i,
@@ -22,13 +25,16 @@ const RELIABILITY_INTENT_PATTERNS = [
     /\bno issues\b/i,
 ];
 
+/**
+ * Scrape Craigslist live for `query` and return normalized listings.
+ * The pipeline writes into a throwaway temp dir that is deleted afterwards,
+ * so nothing is cached between searches.
+ */
 export async function searchCraigslistCars({ query, location, maxMileage = null, maxResults = 10 }) {
     const searchContext = analyzeSearchIntent(query);
-    const { dataFile, researchApplied } = await ensureStructuredData(searchContext.vehicleQuery, {
-        includeResearch: searchContext.reliabilityIntent,
-    });
-    const prepared = await loadAndPrepareListings({
-        dataFile,
+    const { rawListings, researchApplied } = await scrapeLive(searchContext.vehicleQuery);
+    const prepared = prepareListings({
+        rawListings,
         query: searchContext.vehicleQuery,
         location,
         maxMileage,
@@ -37,6 +43,7 @@ export async function searchCraigslistCars({ query, location, maxMileage = null,
 
     return {
         listings: prepared.bestListings.map(stripInternalSearchFields),
+        rawCount: prepared.rawCount,
         searchContext: {
             ...searchContext,
             maxMileage,
@@ -45,8 +52,31 @@ export async function searchCraigslistCars({ query, location, maxMileage = null,
     };
 }
 
-async function loadAndPrepareListings({ dataFile, query, location, maxMileage, maxResults }) {
-    const rawListings = JSON.parse(await fs.readFile(dataFile, 'utf-8'));
+async function scrapeLive(query) {
+    const dataRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'carma-'));
+    try {
+        await runCraigslistPipeline(query, { stages: [1, 2, 3, 4, 5], dataRoot });
+
+        const structuredDir = path.join(dataRoot, '04_structured');
+        const files = await fs.readdir(structuredDir).catch(() => []);
+        const enriched = files.find((f) => f.startsWith('listings_enriched_') && f.endsWith('.json'));
+        const structured = files.find((f) => f.startsWith('listings_structured_') && f.endsWith('.json'));
+        const file = enriched || structured;
+        if (!file) {
+            throw new Error(`No Craigslist listings found for "${query}".`);
+        }
+
+        const rawListings = JSON.parse(await fs.readFile(path.join(structuredDir, file), 'utf-8'));
+        return {
+            rawListings: Array.isArray(rawListings) ? rawListings : [],
+            researchApplied: Boolean(enriched),
+        };
+    } finally {
+        await fs.rm(dataRoot, { recursive: true, force: true });
+    }
+}
+
+function prepareListings({ rawListings, query, location, maxMileage, maxResults }) {
 
     const normalizedListings = rawListings
         .map((listing, index) => normalizeCraigslistListing(listing, index, query, location))
@@ -86,126 +116,17 @@ function applyMileageFilter(listings, maxMileage) {
     return listings.filter((listing) => Number.isFinite(Number(listing.mileage)) && Number(listing.mileage) <= limit);
 }
 
-async function ensureStructuredData(query, { includeResearch = false } = {}) {
-    if (includeResearch) {
-        const enrichedFile = await findBestDataFile(query, ['listings_enriched_']);
-        if (enrichedFile) {
-            return { dataFile: enrichedFile, researchApplied: true };
-        }
-
-        const structuredFile = await findBestDataFile(query, ['listings_structured_']);
-        if (structuredFile) {
-            await runCraigslistPipeline(query, { stages: [5] });
-            const generatedEnrichedFile = await findBestDataFile(query, ['listings_enriched_']);
-            if (generatedEnrichedFile) {
-                return { dataFile: generatedEnrichedFile, researchApplied: true };
-            }
-
-            return { dataFile: structuredFile, researchApplied: false };
-        }
-
-        await runCraigslistPipeline(query, { stages: [1, 2, 3, 4, 5] });
-        const generatedFile = await findBestDataFile(query, ['listings_enriched_', 'listings_structured_']);
-        if (generatedFile) {
-            return {
-                dataFile: generatedFile,
-                researchApplied: path.basename(generatedFile).startsWith('listings_enriched_'),
-            };
-        }
-    } else {
-        const matchedFile = await findBestDataFile(query, ['listings_structured_']);
-        if (matchedFile) {
-            return { dataFile: matchedFile, researchApplied: false };
-        }
-
-        await runCraigslistPipeline(query, { stages: [1, 2, 3, 4] });
-        const generatedFile = await findBestDataFile(query, ['listings_structured_']);
-        if (generatedFile) {
-            return { dataFile: generatedFile, researchApplied: false };
-        }
-    }
-
-    throw new Error(`Craigslist pipeline did not produce structured output for "${query}".`);
-}
-
-async function findBestDataFile(query, prefixes) {
-    const entries = await safeReadStructuredDir();
-    const files = entries
-        .filter((entry) => entry.isFile() && prefixes.some((prefix) => entry.name.startsWith(prefix)) && entry.name.endsWith('.json'))
-        .map((entry) => entry.name);
-
-    for (const prefix of prefixes) {
-        const exactCandidates = slugCandidates(query).map(
-            (slug) => `${prefix}${slug}.json`
-        );
-
-        for (const candidate of exactCandidates) {
-            if (files.includes(candidate)) {
-                return path.join(STRUCTURED_DIR, candidate);
-            }
-        }
-    }
-
-    const queryTokens = tokenize(query);
-    const requiredTokens = queryTokens.filter((token) => !/^\d{4}$/.test(token));
-    const tokensToMatch = requiredTokens.length > 0 ? requiredTokens : queryTokens;
-    const best = files
-        .map((file) => ({
-            file,
-            ...scoreFileMatch(file, tokensToMatch),
-        }))
-        .filter((candidate) => candidate.matchedTokenCount === tokensToMatch.length)
-        .sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score;
-            return b.matchedTokenCount - a.matchedTokenCount;
-        })[0];
-
-    return best ? path.join(STRUCTURED_DIR, best.file) : null;
-}
-
-async function safeReadStructuredDir() {
-    try {
-        return await fs.readdir(STRUCTURED_DIR, { withFileTypes: true });
-    } catch (error) {
-        if (error?.code === 'ENOENT') {
-            await fs.mkdir(STRUCTURED_DIR, { recursive: true });
-            return [];
-        }
-        throw error;
-    }
-}
-
-function scoreFileMatch(fileName, queryTokens) {
-    const fileTokens = tokenize(
-        fileName
-            .replace(/^listings_(?:structured|enriched)_/, '')
-            .replace(/\.json$/, '')
-    );
-
-    let score = 0;
-    let matchedTokenCount = 0;
-    for (const token of queryTokens) {
-        if (fileTokens.includes(token)) {
-            score += 2;
-            matchedTokenCount += 1;
-        } else if (fileTokens.some((fileToken) => fileToken.includes(token) || token.includes(fileToken))) {
-            score += 1;
-            matchedTokenCount += 1;
-        }
-    }
-    return { score, matchedTokenCount };
-}
-
-async function runCraigslistPipeline(query, { stages = [1, 2, 3, 4] } = {}) {
+async function runCraigslistPipeline(query, { stages = [1, 2, 3, 4], dataRoot }) {
     await new Promise((resolve, reject) => {
         const stageArgs = Array.isArray(stages) && stages.length > 0
             ? ['--stages', ...stages.map(String)]
             : [];
-        const child = spawn('python3', [PIPELINE_SCRIPT, query, ...stageArgs], {
+        const child = spawn(PYTHON_BIN, [PIPELINE_SCRIPT, query, ...stageArgs], {
             cwd: PIPELINE_DIR,
             env: {
                 ...process.env,
                 CAR_QUERY: query,
+                CARMA_DATA_ROOT: dataRoot,
             },
             stdio: ['ignore', 'pipe', 'pipe'],
         });
@@ -737,17 +658,6 @@ function computeListingAgeDays(isoLikeDate) {
     const parsed = new Date(isoLikeDate);
     if (Number.isNaN(parsed.getTime())) return null;
     return Math.max(0, Math.round((Date.now() - parsed.getTime()) / (1000 * 60 * 60 * 24)));
-}
-
-function slugCandidates(query) {
-    const normalized = sanitizeQuery(query);
-    if (!normalized) return [];
-
-    const base = normalized.replace(/\s+/g, '_');
-    const compact = normalized.replace(/\s+/g, '');
-    const withoutDigitBreaks = normalized.replace(/\s+(?=\d)/g, '');
-
-    return [...new Set([base, compact, withoutDigitBreaks.replace(/\s+/g, '_')])];
 }
 
 function sanitizeQuery(query) {

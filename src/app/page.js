@@ -10,52 +10,46 @@ export default function HomePage() {
     const [loading, setLoading] = useState(false);
     const [loadingMsg, setLoadingMsg] = useState('');
 
-    const pollForResults = async (query, formData, attempt = 0) => {
-        const maxAttempts = 18;
-        const pollInterval = 10000;
+    const failSearch = (message) => {
+        setLoading(false);
+        setLoadingMsg('');
+        alert(message);
+    };
 
-        if (attempt >= maxAttempts) {
-            setLoading(false);
-            setLoadingMsg('');
-            alert('Search timed out. The pipeline may still be running — try again in a minute.');
+    const pollForResults = async (jobId, query, formData) => {
+        const pollInterval = 4000;
+        const maxWaitMs = 7 * 60 * 1000;
+        const started = Date.now();
+
+        while (Date.now() - started < maxWaitMs) {
+            const elapsed = Math.round((Date.now() - started) / 1000);
+            setLoadingMsg(`Scraping Craigslist live for "${query}"... (${elapsed}s)`);
+            await new Promise((r) => setTimeout(r, pollInterval));
+
+            let data;
+            try {
+                const res = await fetch(`/api/search?job=${encodeURIComponent(jobId)}`);
+                data = await res.json();
+            } catch {
+                continue;
+            }
+
+            if (data.status === 'pipeline_running') continue;
+
+            if (data.status === 'done') {
+                if (!data.listings?.length) {
+                    failSearch(`No Craigslist listings found for "${query}". Try a different search.`);
+                    return;
+                }
+                await rankAndNavigate(data.listings, formData, data);
+                return;
+            }
+
+            failSearch(data.error || 'Scraping failed. Please try again.');
             return;
         }
 
-        const dots = '.'.repeat((attempt % 3) + 1);
-        const elapsed = Math.round((attempt * pollInterval) / 1000);
-        setLoadingMsg(`Scraping Craigslist for "${query}"${dots} (${elapsed}s)`);
-
-        await new Promise((r) => setTimeout(r, pollInterval));
-
-        try {
-            // Check if pipeline failed by re-hitting search endpoint
-            if (attempt > 0 && attempt % 3 === 0) {
-                const statusRes = await fetch('/api/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query }),
-                });
-                const statusData = await statusRes.json();
-                if (statusData.status === 'pipeline_failed' || statusData.status === 'pipeline_unavailable') {
-                    setLoading(false);
-                    setLoadingMsg('');
-                    alert(statusData.message || 'Pipeline failed. Try again.');
-                    return;
-                }
-            }
-
-            const pollRes = await fetch(`/api/craigslist?q=${encodeURIComponent(query)}`);
-            const pollData = await pollRes.json();
-
-            if (pollData.success && pollData.listings?.length > 0) {
-                await rankAndNavigate(pollData.listings, formData, pollData);
-                return;
-            }
-        } catch {
-            // keep polling
-        }
-
-        return pollForResults(query, formData, attempt + 1);
+        failSearch('Scraping is taking too long. Please try again.');
     };
 
     const rankAndNavigate = async (listings, formData, searchData) => {
@@ -115,29 +109,11 @@ export default function HomePage() {
 
             const searchData = await searchRes.json();
 
-            // Pipeline started in background — poll for results
-            if (searchData.status === 'pipeline_running') {
-                pollForResults(formData.query, formData);
-                return;
-            }
-
-            if (searchData.status === 'pipeline_unavailable' || searchData.status === 'pipeline_failed') {
-                setLoading(false);
-                setLoadingMsg('');
-                alert(searchData.message || 'Pipeline could not run. Try again or run it locally.');
-                return;
-            }
-
-            if (!searchRes.ok || !searchData.success) {
+            if (searchData.status !== 'pipeline_running' || !searchData.jobId) {
                 throw new Error(searchData.error || 'Search failed.');
             }
 
-            if (!searchData.listings || searchData.listings.length === 0) {
-                alert('No listings found. Try a different search.');
-                return;
-            }
-
-            await rankAndNavigate(searchData.listings, formData, searchData);
+            await pollForResults(searchData.jobId, formData.query, formData);
         } catch (error) {
             console.error('Search failed:', error);
             alert(error.message || 'Something went wrong. Please try again.');
@@ -150,72 +126,44 @@ export default function HomePage() {
         <>
             <section className="hero">
                 <div className="container">
-                    <h1 className="hero-title animate-fade-in-up">
-                        Find Your Perfect Car,{' '}
-                        <span className="gradient-text">Smarter</span>
+                    <p className="hero-eyebrow">Bay Area · Sacramento · Central Valley</p>
+                    <h1 className="hero-title">
+                        Used cars on Craigslist, <em>minus the scrolling.</em>
                     </h1>
-                    <p className="hero-subtitle animate-fade-in-up animate-delay-1">
-                        Carma uses your team&apos;s Craigslist scraping pipeline, scores every listing from structured scraped attributes,
-                        and tells you which cars are worth buying based on your budget and lifestyle.
+                    <p className="hero-lede">
+                        Type the car you want. Carma pulls every current Craigslist listing for it,
+                        drops the ones with no price or a too-good-to-be-true price, and ranks the
+                        rest against your budget and how you&apos;ll actually drive it.
                     </p>
 
-                    <div className="animate-fade-in-up animate-delay-2">
-                        <SearchForm onSearch={handleSearch} loading={loading} loadingMsg={loadingMsg} />
-                    </div>
+                    <SearchForm onSearch={handleSearch} loading={loading} loadingMsg={loadingMsg} />
                 </div>
             </section>
 
-            <section id="how-it-works" style={{ padding: '5rem 0' }}>
-                <div className="container">
-                    <h2 style={{ textAlign: 'center', marginBottom: '3rem', fontSize: '2rem' }}>
-                        How It Works
-                    </h2>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                        gap: '2rem',
-                    }}>
-                        {[
-                            {
-                                icon: '🔍',
-                                title: 'Search',
-                                desc: 'Tell us what car you want, your budget, and how you plan to use it.',
-                            },
-                            {
-                                icon: '🌐',
-                                title: 'Aggregate',
-                                desc: 'We load structured Craigslist listings from the backend scraping pipeline your team already built.',
-                            },
-                            {
-                                icon: '🤖',
-                                title: 'Score',
-                                desc: 'Each listing is scored from scraped attributes like price, mileage, year, title, seller, and condition signals.',
-                            },
-                            {
-                                icon: '✅',
-                                title: 'Decide',
-                                desc: 'Review ranked buy recommendations with explainable score breakdowns and listing links.',
-                            },
-                        ].map((step, i) => (
-                            <div
-                                key={i}
-                                className="card animate-fade-in-up"
-                                style={{
-                                    padding: '2rem',
-                                    textAlign: 'center',
-                                    animationDelay: `${i * 0.15}s`,
-                                    opacity: 0,
-                                }}
-                            >
-                                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>{step.icon}</div>
-                                <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>{step.title}</h3>
-                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                                    {step.desc}
-                                </p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+            <section id="how" className="container notes">
+                <h2>How the ranking works</h2>
+                <ol className="notes-list">
+                    <li>
+                        <strong>It searches live, every time.</strong>
+                        Nothing is cached, so links point to ads that are up right now. That&apos;s
+                        also why a search takes a minute.
+                    </li>
+                    <li>
+                        <strong>Junk gets filtered out.</strong>
+                        Listings without a price, or priced way under similar cars nearby, don&apos;t
+                        make the list. Duplicates of the same car are merged.
+                    </li>
+                    <li>
+                        <strong>Every car gets a score out of 10.</strong>
+                        It weighs price against comparable listings, mileage for the year, title
+                        status, and how complete the ad is, then checks it against your budget.
+                    </li>
+                    <li>
+                        <strong>It doesn&apos;t replace a test drive.</strong>
+                        Scores are only as good as what the seller wrote. Get a pre-purchase
+                        inspection before you hand over cash.
+                    </li>
+                </ol>
             </section>
         </>
     );

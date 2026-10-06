@@ -127,7 +127,8 @@ def write_normalized_jsonl(path: Path, results: List[Dict[str, Any]], source_csv
                 "error": infer_error(r),
                 "raw_content": r.get("raw_content") or "",
                 "content": r.get("content") or "",
-                "tavily_meta": {k: v for k, v in r.items() if k not in ("raw_content", "content")},
+                "images": r.get("images") or [],
+                "tavily_meta": {k: v for k, v in r.items() if k not in ("raw_content", "content", "images")},
             }
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 

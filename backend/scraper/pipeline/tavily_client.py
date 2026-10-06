@@ -83,7 +83,12 @@ client = TavilyHTTPClient(
 # pipeline/ lives at backend/scraper/pipeline/
 # so go up 2 levels to backend/, then into data/craigslist/
 PIPELINE_DIR = Path(__file__).resolve().parent
-DATA_ROOT = (PIPELINE_DIR / ".." / ".." / "data" / "craigslist").resolve()
+# The web app sets CARMA_DATA_ROOT to a temp dir per search so nothing persists
+DATA_ROOT = (
+    Path(os.environ["CARMA_DATA_ROOT"]).resolve()
+    if os.environ.get("CARMA_DATA_ROOT")
+    else (PIPELINE_DIR / ".." / ".." / "data" / "craigslist").resolve()
+)
 
 # Stage directories — each stage reads from previous, writes to its own
 STAGE_DIRS = {
@@ -91,6 +96,8 @@ STAGE_DIRS = {
     2: DATA_ROOT / "02_links",
     3: DATA_ROOT / "03_listing_pages",
     4: DATA_ROOT / "04_structured",
+    5: DATA_ROOT / "05_research",
+    6: DATA_ROOT / "06_expanded",
 }
 
 

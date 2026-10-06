@@ -49,10 +49,9 @@ SLUG = query_slug(CAR_QUERY)
 PIPELINE_DIR = Path(__file__).resolve().parent
 
 # ── Paths ──
-STAGE5_JSON = (PIPELINE_DIR / ".." / ".." / "data" / "craigslist" / "05_research" / f"research_{SLUG}.json").resolve()
+STAGE5_JSON = stage_dir(5) / f"research_{SLUG}.json"
 STAGE4_JSON = stage_dir(4) / f"listings_structured_{SLUG}.json"
-OUT_DIR = (PIPELINE_DIR / ".." / ".." / "data" / "craigslist" / "06_expanded").resolve()
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+OUT_DIR = stage_dir(6)
 OUTPUT_JSON = OUT_DIR / f"expanded_{SLUG}.json"
 
 MIN_GOOD_RESULTS = 20  # threshold that triggers expansion
@@ -396,7 +395,7 @@ def tool_merge_and_finalize(searched_queries: List[str]) -> Dict[str, Any]:
         slug = query_slug(query)
 
         # Try to get stage 5 enriched data first, fall back to stage 4
-        stage5 = (PIPELINE_DIR / ".." / ".." / "data" / "craigslist" / "05_research" / f"research_{slug}.json").resolve()
+        stage5 = stage_dir(5) / f"research_{slug}.json"
         stage4 = stage_dir(4) / f"listings_structured_{slug}.json"
 
         listings = []

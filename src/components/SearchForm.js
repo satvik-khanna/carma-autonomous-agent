@@ -3,35 +3,30 @@
 import { useState } from "react";
 
 const USE_CASES = [
-  { value: "daily commute", label: "Daily Commute", icon: "🏙️" },
-  { value: "weekend trips", label: "Weekend Trips", icon: "🛣️" },
-  { value: "road trips", label: "Road Trips", icon: "🗺️" },
-  { value: "family", label: "Family", icon: "👨‍👩‍👧‍👦" },
-  { value: "business", label: "Business", icon: "💼" },
-  { value: "fun driving", label: "Performance", icon: "🏎️" },
+  { value: "daily commute", label: "Commuting" },
+  { value: "weekend trips", label: "Weekends" },
+  { value: "road trips", label: "Road trips" },
+  { value: "family", label: "Family" },
+  { value: "business", label: "Work" },
+  { value: "fun driving", label: "Fun" },
 ];
 
 const DURATIONS = [
-  { value: "less than 6 months", label: "< 6 mo" },
+  { value: "less than 6 months", label: "Under 6 mo" },
   { value: "6 months to 1 year", label: "6–12 mo" },
   { value: "1-3 years", label: "1–3 yr" },
   { value: "3+ years", label: "3+ yr" },
 ];
 
-const BUDGET_MARKS = [200, 400, 600, 800, 1000, 1500, 2000, 3000];
-const MILEAGE_MARKS = [30000, 60000, 90000, 120000, 150000];
+function formatBudget(value) {
+  return value >= 3000 ? "$3,000+/mo" : `$${value.toLocaleString()}/mo`;
+}
 
 function formatMileage(value) {
-  if (value >= 150000) return "150,000+ mi";
-  return `${Number(value).toLocaleString()} mi`;
+  return value >= 150000 ? "150k+ mi" : `${Math.round(value / 1000)}k mi`;
 }
 
-function formatBudget(value) {
-  if (value >= 3000) return "$3,000+";
-  return `$${value.toLocaleString()}`;
-}
-
-export default function SearchForm({ onSearch, loading }) {
+export default function SearchForm({ onSearch, loading, loadingMsg }) {
   const [formData, setFormData] = useState({
     query: "",
     location: "",
@@ -57,179 +52,133 @@ export default function SearchForm({ onSearch, loading }) {
 
   return (
     <form className="sf" onSubmit={handleSubmit}>
-      {/* --- Car Search & Location --- */}
-      <div className="sf-section">
-        <div className="sf-row">
-          <div className="sf-field sf-field-wide">
-            <label htmlFor="sf-query" className="sf-label">
-              <span className="sf-label-icon">🔍</span>
-              What car are you looking for?
-            </label>
-            <input
-              id="sf-query"
-              name="query"
-              type="text"
-              className="sf-input sf-input-hero"
-              placeholder="e.g. Toyota Camry, Honda Civic, SUV..."
-              value={formData.query}
-              onChange={handleChange}
-              required
-              autoComplete="off"
-            />
-          </div>
-          <div className="sf-field">
-            <label htmlFor="sf-location" className="sf-label">
-              <span className="sf-label-icon">📍</span>
-              Location
-            </label>
-            <input
-              id="sf-location"
-              name="location"
-              type="text"
-              className="sf-input"
-              placeholder="City or ZIP"
-              value={formData.location}
-              onChange={handleChange}
-              autoComplete="off"
-            />
-          </div>
+      <div className="sf-grid">
+        <div className="field">
+          <label htmlFor="sf-query" className="field-label">Car</label>
+          <input
+            id="sf-query"
+            name="query"
+            type="text"
+            className="input input-lg"
+            placeholder="Honda Civic, Toyota Supra, Acura MDX…"
+            value={formData.query}
+            onChange={handleChange}
+            required
+            autoComplete="off"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="sf-location" className="field-label">Near</label>
+          <input
+            id="sf-location"
+            name="location"
+            type="text"
+            className="input input-lg"
+            placeholder="San Jose"
+            value={formData.location}
+            onChange={handleChange}
+            autoComplete="off"
+          />
         </div>
       </div>
 
-      {/* --- Budget Slider --- */}
-      <div className="sf-section">
-        <label className="sf-label">
-          <span className="sf-label-icon">💰</span>
-          Monthly Budget
-          <span className="sf-budget-value">
-            {formatBudget(Number(formData.budget))}
-          </span>
-        </label>
-        <div className="sf-slider-wrap">
+      <div className="sf-grid">
+        <div className="field">
+          <label htmlFor="sf-budget" className="field-label">
+            Monthly budget
+            <span className="field-value">{formatBudget(Number(formData.budget))}</span>
+          </label>
           <input
+            id="sf-budget"
             type="range"
             name="budget"
-            className="sf-slider"
+            className="range"
             min="100"
             max="3000"
             step="50"
             value={formData.budget}
             onChange={handleChange}
-            style={{
-              "--pct": `${((Number(formData.budget) - 100) / (3000 - 100)) * 100}%`,
-            }}
           />
-          <div className="sf-slider-marks">
-            {BUDGET_MARKS.map((mark) => (
-              <span
-                key={mark}
-                className={`sf-slider-mark ${Number(formData.budget) >= mark ? "active" : ""}`}
-              >
-                {mark >= 1000 ? `$${mark / 1000}k` : `$${mark}`}
-              </span>
-            ))}
+          <div className="range-scale">
+            <span>$100</span>
+            <span>$1,500</span>
+            <span>$3,000</span>
           </div>
         </div>
-      </div>
-
-      {/* --- Max Mileage Slider --- */}
-      <div className="sf-section">
-        <label className="sf-label">
-          <span className="sf-label-icon">🛣️</span>
-          Max Mileage
-          <span className="sf-budget-value">
-            {formatMileage(Number(formData.maxMileage))}
-          </span>
-        </label>
-        <div className="sf-slider-wrap">
+        <div className="field">
+          <label htmlFor="sf-mileage" className="field-label">
+            Max mileage
+            <span className="field-value">{formatMileage(Number(formData.maxMileage))}</span>
+          </label>
           <input
+            id="sf-mileage"
             type="range"
             name="maxMileage"
-            className="sf-slider"
+            className="range"
             min="10000"
             max="150000"
             step="5000"
             value={formData.maxMileage}
             onChange={handleChange}
-            style={{
-              "--pct": `${((Number(formData.maxMileage) - 10000) / (150000 - 10000)) * 100}%`,
-            }}
           />
-          <div className="sf-slider-marks">
-            {MILEAGE_MARKS.map((mark) => (
-              <span
-                key={mark}
-                className={`sf-slider-mark ${Number(formData.maxMileage) >= mark ? "active" : ""}`}
+          <div className="range-scale">
+            <span>10k</span>
+            <span>80k</span>
+            <span>150k</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="sf-grid">
+        <div className="field">
+          <span className="field-label">Mostly for</span>
+          <div className="seg">
+            {USE_CASES.map((uc) => (
+              <button
+                key={uc.value}
+                type="button"
+                className={`seg-btn ${formData.useCase === uc.value ? "is-active" : ""}`}
+                onClick={() => setField("useCase", uc.value)}
               >
-                {mark >= 1000 ? `${mark / 1000}k` : mark}
-              </span>
+                {uc.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="field">
+          <span className="field-label">Keeping it for</span>
+          <div className="seg">
+            {DURATIONS.map((d) => (
+              <button
+                key={d.value}
+                type="button"
+                className={`seg-btn ${formData.duration === d.value ? "is-active" : ""}`}
+                onClick={() => setField("duration", d.value)}
+              >
+                {d.label}
+              </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* --- Primary Use --- */}
-      <div className="sf-section">
-        <label className="sf-label">
-          <span className="sf-label-icon">🚗</span>
-          Primary Use
-        </label>
-        <div className="sf-chips">
-          {USE_CASES.map((uc) => (
-            <button
-              key={uc.value}
-              type="button"
-              className={`sf-chip ${formData.useCase === uc.value ? "sf-chip-active" : ""}`}
-              onClick={() => setField("useCase", uc.value)}
-            >
-              <span className="sf-chip-icon">{uc.icon}</span>
-              {uc.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* --- Duration --- */}
-      <div className="sf-section">
-        <label className="sf-label">
-          <span className="sf-label-icon">⏱️</span>
-          How Long?
-        </label>
-        <div className="sf-segment">
-          {DURATIONS.map((d) => (
-            <button
-              key={d.value}
-              type="button"
-              className={`sf-segment-btn ${formData.duration === d.value ? "sf-segment-active" : ""}`}
-              onClick={() => setField("duration", d.value)}
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* --- Submit --- */}
-      <div className="sf-actions">
-        <button
-          type="submit"
-          className="sf-submit"
-          disabled={loading || !formData.query.trim()}
-        >
+      <div className="sf-footer">
+        <div className="sf-status">
           {loading ? (
             <>
-              <span
-                className="loading-spinner"
-                style={{ width: 20, height: 20, borderWidth: 2 }}
-              />
-              Searching across listings...
+              <strong>{loadingMsg || "Searching…"}</strong>
+              <div className="progress" />
             </>
           ) : (
-            <>
-              <span style={{ fontSize: "1.25rem" }}>🚀</span>
-              Find My Perfect Car
-            </>
+            "Searches Craigslist live. Takes about a minute, longer for popular cars."
           )}
+        </div>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={loading || !formData.query.trim()}
+        >
+          {loading ? "Searching…" : "Search listings"}
         </button>
       </div>
     </form>

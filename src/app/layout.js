@@ -1,9 +1,8 @@
 import '@/styles/globals.css';
 
 export const metadata = {
-    title: 'Carma — Smart Car Buying Recommendations',
-    description: 'Find your perfect car purchase. Carma aggregates listings from top car sites and scores each listing from scraped attributes.',
-    keywords: ['cars', 'buy car', 'used car', 'car comparison', 'car recommendation'],
+    title: 'Carma — used cars from Craigslist, ranked',
+    description: 'Carma searches Craigslist for the car you want, drops the sketchy listings, and ranks the rest against your budget.',
 };
 
 export default function RootLayout({ children }) {
@@ -13,21 +12,20 @@ export default function RootLayout({ children }) {
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
                 <link
-                    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+                    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap"
                     rel="stylesheet"
                 />
             </head>
             <body>
                 <div className="page-wrapper">
-                    <nav className="navbar">
-                        <div className="container navbar-inner">
-                            <a href="/" className="navbar-brand">
-                                <span className="brand-icon">🚗</span>
-                                <span className="brand-gradient">Carma</span>
+                    <nav className="nav">
+                        <div className="container nav-inner">
+                            <a href="/" className="brand">
+                                carma<span className="brand-dot">.</span>
                             </a>
-                            <ul className="navbar-links">
-                                <li><a href="/">Search</a></li>
-                                <li><a href="#how-it-works">How It Works</a></li>
+                            <ul className="nav-links">
+                                <li><a href="/">New search</a></li>
+                                <li><a href="/#how">How ranking works</a></li>
                             </ul>
                         </div>
                     </nav>
@@ -36,7 +34,8 @@ export default function RootLayout({ children }) {
 
                     <footer className="footer">
                         <div className="container">
-                            <p>© 2026 Carma — Built with Tavily, OpenAI & AWS</p>
+                            <span>Carma · listings come straight from Craigslist</span>
+                            <span>Not affiliated with Craigslist. Always see the car in person.</span>
                         </div>
                     </footer>
                 </div>

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Run the scraping pipeline: Stage 1 → 2 → 3 → 4 → 5 → AWS upload (always)
+Run the scraping pipeline: Stage 1 → 2 → 3 → 4 → 5
 
 Usage:
-    python run_pipeline.py "honda civic"                # stages 1-5 + AWS upload
-    python run_pipeline.py "toyota camry" --stages 3 4  # rerun stages 3-4 + AWS upload
+    python run_pipeline.py "honda civic"                # stages 1-5
+    python run_pipeline.py "toyota camry" --stages 3 4  # rerun stages 3-4
     python run_pipeline.py "lexus is350" --all-stages   # include stage 6 (expansion)
     python run_pipeline.py                              # interactive prompt
 """
@@ -34,28 +34,6 @@ DEFAULT_STAGES = {1, 2, 3, 4, 5}
 def slugify(query: str) -> str:
     import re
     return re.sub(r"[^a-z0-9]+", "_", query.lower().strip()).strip("_")
-
-
-def upload_to_aws(query: str) -> int:
-    """Run aws_upload.py for the given query slug — always runs after pipeline."""
-    upload_script = PROJECT_ROOT / "backend" / "aws_upload.py"
-    if not upload_script.exists():
-        print("\n  ❌ aws_upload.py not found — cannot upload to AWS")
-        return 1
-
-    slug = slugify(query)
-    print(f"\n{'='*60}")
-    print(f"  ☁️  Uploading to AWS (slug: {slug})")
-    print(f"{'='*60}\n")
-
-    result = subprocess.run(
-        [sys.executable, str(upload_script), "--slug", slug],
-        cwd=str(PROJECT_ROOT),
-    )
-
-    if result.returncode != 0:
-        print(f"\n  ❌ AWS upload failed (exit {result.returncode})")
-    return result.returncode
 
 
 def main() -> int:
@@ -88,7 +66,6 @@ def main() -> int:
     stage_list = ", ".join(str(s) for s in sorted(only))
     print(f"\n  🔍 Query: \"{query}\"")
     print(f"  📋 Stages: {stage_list}")
-    print(f"  ☁️  AWS upload: always")
 
     start = time.time()
 
@@ -114,11 +91,6 @@ def main() -> int:
     print(f"\n{'='*60}")
     print(f"  ✅ Pipeline complete in {elapsed:.1f}s")
     print(f"{'='*60}")
-
-    # Always upload to AWS
-    aws_rc = upload_to_aws(query)
-    if aws_rc != 0:
-        return aws_rc
 
     return 0
 
